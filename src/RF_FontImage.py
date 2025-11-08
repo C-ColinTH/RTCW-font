@@ -4,7 +4,7 @@
 """
 
 
-from typing import Tuple, List, Dict, Optional, NoReturn
+from typing import Tuple, List, Set, Dict, Optional, NoReturn
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -234,7 +234,7 @@ class FontImage:
 
             print(f"Saved texture: {texture_name}.tga ({texture.width}x{texture.height})")
 
-    def _save_tga_for_rtcw(self, image: Image, filepath: str) -> NoReturn:
+    def _save_tga_for_rtcw(self, image: Image.Image, filepath: str) -> NoReturn:
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
 

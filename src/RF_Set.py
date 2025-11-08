@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Optional, TYPE_CHECKING
+from typing import Tuple, List, Set, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -46,7 +46,7 @@ class TTFGlyph:
         self.ascent: int = 0
         self.descent: int = 0
         self.image: Optional[Image.Image] = None    # PIL.Image from pillow
-        self.bbox: Tuple[int, int, int, int] = (0, 0, 0, 0)
+        self.bbox: Tuple[float, float, float, float] = (0, 0, 0, 0)
         self.texture_index: int = 0
 
 

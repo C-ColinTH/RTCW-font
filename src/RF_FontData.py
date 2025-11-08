@@ -4,7 +4,7 @@
 """
 
 
-from typing import Tuple, List, Dict, Optional, NoReturn, AnyStr
+from typing import Tuple, List, Set, Dict, Optional, NoReturn
 import os
 import struct
 from RF_Set import *
@@ -49,13 +49,13 @@ class FontData:
         """
 
         """ tool functions """
-        def fnt_remove_lines_comments(lines: List[AnyStr]) -> List[AnyStr]:
+        def fnt_remove_lines_comments(lines: List[str]) -> List[str]:
             return _remove_lines_comments(lines)
 
         def fnt_get_line_value(keyname: str) -> str:
             nonlocal i, length, lines, filepath
             j: int = 0
-            line = lines[i+j].strip()
+            line: str = lines[i+j].strip()
 
             while i + j < length and '}' not in line:
                 if (keyname + ' ') in line and keyname[0] == line[0]:
@@ -69,7 +69,7 @@ class FontData:
 
         """ read_fnt """
         with open(file=filepath, mode='r', encoding=encode, errors='ignore') as f:
-            lines: List[AnyStr] = fnt_remove_lines_comments(f.readlines())
+            lines: List[str] = fnt_remove_lines_comments(f.readlines())
 
         i: int = 0
         length: int = len(lines)
@@ -347,7 +347,7 @@ class FontData:
         self.show_info(index)
 
 
-def _remove_lines_comments(lines: List[AnyStr]) -> List[AnyStr]:
+def _remove_lines_comments(lines: List[str]) -> List[str]:
     cleaned_lines: List = []
     in_comment: bool = False
 
