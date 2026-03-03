@@ -180,7 +180,7 @@ class FontData:
             self.glyphScale = struct.unpack('<f', global_info_data[0:4])[0]
             self.name = '\"' + global_info_data[4:GLOBAL_INFO_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode('latin-1', errors='ignore') + '\"'
 
-            # read header, because we have a special data format for unicode
+            # read header, because we have a new compact storge format for unicode
             if _is_unic_format(f):
                 print("reading glyphs info from 'UNIC' format DAT...")
                 per_glyph_data_size = PER_GLYPH_UNIC_DATA_SIZE
@@ -331,8 +331,11 @@ class FontData:
             filename = os.path.join(self.output_dir, filename)
 
         with open(file=filename, mode='wb') as f:
+            is_unic_format = len(self.glyphs) > 256
+
             # header
-            f.write(dat_str_to_hex(GLOBAL_UNIC_HEADER, byte_len=len(GLOBAL_UNIC_HEADER)))
+            if is_unic_format:
+                f.write(dat_str_to_hex(GLOBAL_UNIC_HEADER, byte_len=len(GLOBAL_UNIC_HEADER)))
 
             # glyphs
             indexes = self.glyphs.keys()
@@ -343,7 +346,8 @@ class FontData:
                     # f.write(bytes(PER_GLYPH_DATA_SIZE))   # write PER_GDATA_LEN * b"0x00"
                 else:
                     glyph = self.glyphs[i]
-                    f.write(dat_int_to_hex(glyph.unicode))
+                    if is_unic_format:
+                        f.write(dat_int_to_hex(glyph.unicode))
                     f.write(dat_int_to_hex(glyph.height))
                     f.write(dat_int_to_hex(glyph.top))
                     f.write(dat_int_to_hex(glyph.bottom))

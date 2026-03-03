@@ -9,7 +9,6 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
-from fontTools.ttLib.tables._c_m_a_p import table__c_m_a_p
 from RF_Set import *
 
 
