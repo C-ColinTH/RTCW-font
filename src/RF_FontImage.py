@@ -9,6 +9,7 @@ import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._c_m_a_p import table__c_m_a_p
 from RF_Set import *
 
 
@@ -29,7 +30,7 @@ class FontImage:
 
         self._startup()
 
-    def _startup(self) -> NoReturn:
+    def _startup(self) -> None:
         if self.output_dir and not self.output_dir.isspace():
             os.makedirs(self.output_dir, exist_ok=True)
 
@@ -39,7 +40,7 @@ class FontImage:
         else:
             self._load_font()
 
-    def _load_font(self) -> NoReturn:
+    def _load_font(self) -> None:
         try_path = self.ttf_path.replace('/', '\\')
         if not os.path.exists(try_path):
             print(f"\"{try_path}\" not exist, ", end='')
@@ -62,11 +63,22 @@ class FontImage:
         available_chars = set()
         available_chars.update([chr(i) for i in range(256)])
 
-        # check cmap table
-        for table in self.font['cmap'].tables:
-            if table.format == 4:  # the mostly used format
-                for code in table.cmap.keys():
-                    if 0 <= code <= self.max_glyphs:  # Unicode range
+        if not self.font:
+            raise AttributeError("Could not find cmap table")
+
+        
+        try:
+            cmap_table = self.font['cmap'].tables
+            for table in cmap_table:
+                if table.format == 4:  # the mostly used format
+                    for code in table.cmap.keys():
+                        if 0 <= code <= self.max_glyphs:  # Unicode range
+                            available_chars.add(chr(code))
+        except:
+            best_table = self.font.getBestCmap()
+            if best_table:
+                for code in best_table.keys():
+                    if 0 <= code <= self.max_glyphs:
                         available_chars.add(chr(code))
 
         return sorted(list(available_chars))
@@ -74,7 +86,7 @@ class FontImage:
     def is_character_supported(self, char: str) -> bool:
         return char in self.available_chars
 
-    def render_glyphs(self, margin: int = 4) -> NoReturn:
+    def render_glyphs(self, margin: int = 4) -> None:
         if not self.font:
             self._load_font()
 
@@ -139,7 +151,7 @@ class FontImage:
         print(f"Successfully rendered {len(self.ttf_glyphs)} characters!")
 
     def pack_textures(self, texture_width: int = 1024, texture_height: int = 1024,
-                      char_spacing: int = 2, texture_margin: int = 16) -> NoReturn:
+                      char_spacing: int = 2, texture_margin: int = 16) -> None:
         self.textures = []
 
         current_x = texture_margin
@@ -163,7 +175,7 @@ class FontImage:
                 current_y += max_row_height + char_spacing
                 max_row_height = 0
 
-            # if need to create an new texture file
+            # if need to create a new texture file
             if current_y + ttf_glyph.height > texture_height - texture_margin:
                 self.textures.append(current_texture)
 
@@ -194,15 +206,15 @@ class FontImage:
 
         print(f"Created {len(self.textures)} texture pages")
 
-    def generate_glyphs_data(self, texture_name_base: str) -> NoReturn:
+    def generate_glyphs_data(self, texture_name_base: str, texture_format: str) -> None:
         self.glyphs = []
 
         for texture in self.textures:
             for ttf_glyph in texture.ttf_glyphs:
                 glyph = Glyph()
-                glyph.id = ord(ttf_glyph.char)
+                glyph.unicode = ord(ttf_glyph.char)
                 glyph.height = ttf_glyph.height
-                glyph.top = ttf_glyph.ascent + ttf_glyph.margin - ttf_glyph.bbox[1]
+                glyph.top = int(ttf_glyph.ascent + ttf_glyph.margin - ttf_glyph.bbox[1])
                 glyph.bottom = glyph.top - ttf_glyph.height
                 glyph.pitch = ttf_glyph.width
                 glyph.xSkip = ttf_glyph.width - ttf_glyph.margin * 2 + 2
@@ -215,11 +227,16 @@ class FontImage:
                 glyph.t2 = (ttf_glyph.y + ttf_glyph.height) / texture.height
 
                 glyph.glyph = 0
-                glyph.shaderName = f"fonts/{texture_name_base}_{texture.texture_index:d}.tga"
+                glyph.shaderName = f"fonts/{texture_name_base}_{texture.texture_index:d}.{texture_format}"
 
                 self.glyphs.append(glyph)
 
-    def save_textures(self, texture_name_base: str) -> NoReturn:
+    def save_textures(self, texture_name_base: str, texture_format: str) -> None:
+        """
+        texture_format: "tga", "png"
+        """
+        format: str = texture_format.lower()
+
         for texture in self.textures:
             atlas = Image.new("RGBA", (texture.width, texture.height), (0, 0, 0, 0))
 
@@ -227,14 +244,17 @@ class FontImage:
                 if ttf_glyph.image:
                     atlas.paste(ttf_glyph.image, (ttf_glyph.x, ttf_glyph.y))
 
-            # save to TGA
             texture_name = f"{texture_name_base}_{texture.texture_index:d}"
-            tga_path = os.path.join(self.output_dir, f"{texture_name}.tga")
-            self._save_tga_for_rtcw(atlas, tga_path)
+            if format == "tga":
+                tga_path = os.path.join(self.output_dir, f"{texture_name}.tga")
+                self._save_tga_for_rtcw(atlas, tga_path)
+            elif format == "png":
+                tga_path = os.path.join(self.output_dir, f"{texture_name}.png")
+                self._save_png_for_rtcw(atlas, tga_path)
 
-            print(f"Saved texture: {texture_name}.tga ({texture.width}x{texture.height})")
+            print(f"Saved texture: {texture_name}.{format} ({texture.width}x{texture.height})")
 
-    def _save_tga_for_rtcw(self, image: Image.Image, filepath: str) -> NoReturn:
+    def _save_tga_for_rtcw(self, image: Image.Image, filepath: str) -> None:
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
 
@@ -264,7 +284,13 @@ class FontImage:
             f.write(header)
             f.write(bgra_data.tobytes())
 
-    def save_fnt_file(self, filepath: str, texture_name_base: str) -> NoReturn:
+    def _save_png_for_rtcw(self, image: Image.Image, filepath: str) -> None:
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+
+        image.save(filepath, 'PNG', optimize=True, compress_level=6)
+
+    def save_fnt_file(self, filepath: str, texture_name_base: str) -> None:
         special_chars: Dict[int, str] = {10: "(LF)", 13: "(CR)"}
 
         with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
@@ -275,14 +301,14 @@ class FontImage:
             f.write(f"// Total characters: {len(self.glyphs)}\n")
             f.write(f"// Texture base name: {texture_name_base}\n\n")
 
-            sorted_glyphs = sorted(self.glyphs, key=lambda g: g.id)
+            sorted_glyphs = sorted(self.glyphs, key=lambda g: g.unicode)
             f.write("// glyphs\n{\n")
             for glyph in sorted_glyphs:
-                if glyph.id in special_chars:
-                    f.write(f"\t// Character: '{special_chars[glyph.id]}' (U+{glyph.id:04X})\n")
+                if glyph.unicode in special_chars:
+                    f.write(f"\t// Character: '{special_chars[glyph.unicode]}' (U+{glyph.unicode:04X})\n")
                 else:
-                    f.write(f"\t// Character: '{chr(glyph.id)}' (U+{glyph.id:04X})\n")
-                f.write(f"\tchar {glyph.id}\n")
+                    f.write(f"\t// Character: '{chr(glyph.unicode)}' (U+{glyph.unicode:04X})\n")
+                f.write(f"\tchar {glyph.unicode}\n")
                 f.write("\t{\n")
                 f.write(f"\t\theight {glyph.height}\n")
                 f.write(f"\t\ttop {glyph.top}\n")
@@ -305,23 +331,32 @@ class FontImage:
             f.write(f"\tname \"{texture_name_base}\"\n")
             f.write("}\n")
 
-    def generate(self, output_name: str, texture_width: int = 1024, texture_height: int = 1024,
-                 char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8) -> NoReturn:
+    def generate(self, output_name: str, save_fnt: bool = True,
+                    texture_width: int = 1024, texture_height: int = 1024,
+                    char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
+                    texture_format: str = "tga") -> None:
+        """
+        texture_format: "tga", "png"
+        """
+        format = texture_format.lower()
+
         self.render_glyphs(margin=char_margin)
         self.pack_textures(texture_width, texture_height, char_spacing, texture_margin)
-        self.generate_glyphs_data(output_name)
-        self.save_textures(output_name)
+        self.generate_glyphs_data(output_name, format)
+        self.save_textures(output_name, format)
 
-        # generate .fnt data file
-        fnt_path = os.path.join(self.output_dir, f"{output_name}.fnt")
-        self.save_fnt_file(fnt_path, output_name)
+        if save_fnt:
+            # generate .fnt data file
+            fnt_path = os.path.join(self.output_dir, f"{output_name}.fnt")
+            self.save_fnt_file(fnt_path, output_name)
 
-        print(f"Generation completed! Created {len(self.textures)} TGA files and 1 FNT file")
+        print(f"Generation completed! Created {len(self.textures)} {format.upper()} files and 1 FNT file")
 
 
 # example
 if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
-    generator = FontImage("./ttffont/simhei.ttf", 36, "./test")
-    generator.generate("fontImage_36", texture_width=1024, texture_height=1024)
+    # "simhei.ttf", "STXINWEI.TTF", "STKAITI.TTF", "方正粗黑宋简体.ttf"
+    generator = FontImage("./ttffont/STXINWEI.TTF", 36, "./test", max_glyphs=65536)
+    generator.generate("fontImage_36", False, texture_width=2048, texture_height=2048, texture_format="png")
 

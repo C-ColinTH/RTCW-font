@@ -4,7 +4,7 @@
 """
 
 
-from typing import Tuple, List, Set, Dict, Optional, NoReturn
+from typing import Tuple, List, Set, Dict, Optional, IO, NoReturn
 import os
 import struct
 from RF_Set import *
@@ -27,7 +27,7 @@ class FontData:
         self._startup()
 
 
-    def _startup(self) -> NoReturn:
+    def _startup(self) -> None:
         if self.output_dir and not self.output_dir.isspace():
             os.makedirs(self.output_dir, exist_ok=True)
 
@@ -42,7 +42,7 @@ class FontData:
         else:
             print(f"[WARNING] unable to read from \"{self.file_path}\"!")
 
-    def read_fnt(self, filepath: str, encode: str = 'utf-8') -> NoReturn:
+    def read_fnt(self, filepath: str, encode: str = 'utf-8') -> None:
         """
         :param filepath: file path
         :param encode: 'ascii', 'latin-1', 'utf-8', 'GBK', 'GB2312', 'cp1251', 'utf-16', 'utf-32'...
@@ -93,7 +93,7 @@ class FontData:
                 glyph.t2 = float(fnt_get_line_value("t2"))
                 glyph.glyph = int(fnt_get_line_value("glyph"))
                 glyph.shaderName = fnt_get_line_value("shaderName")
-                glyph.id = index
+                glyph.unicode = index
                 self.glyphs[index] = glyph
 
                 i += len(vars(glyph)) - 1     # numbers of Glyph instance variable
@@ -106,67 +106,115 @@ class FontData:
 
             i += 1
 
-    def read_dat(self, filepath: str) -> NoReturn:
+    def read_dat(self, filepath: str) -> None:
         """ tool function """
-        def parse_glyph_info(data_block, glyphs_index) -> Glyph:
-            if len(data_block) < PER_GLYPH_DATA_SIZE:
-                raise ValueError(f"[Error] the size of glyph data block is below the minimum \
-                                 {PER_GLYPH_DATA_SIZE}, please make sure file is RTCW valid format.")
-
+        def _parse_glyph_info(data_block: bytes, is_unic_format: bool) -> Glyph:
+            nonlocal glyphs_index
             glyph = Glyph()
-            glyph.id = glyphs_index
-            glyph.height = struct.unpack('<i', data_block[0:4])[0]
-            glyph.top = struct.unpack('<i', data_block[4:8])[0]
-            glyph.bottom = struct.unpack('<i', data_block[8:12])[0]
-            glyph.pitch = struct.unpack('<i', data_block[12:16])[0]
-            glyph.xSkip = struct.unpack('<i', data_block[16:20])[0]
-            glyph.imageWidth = struct.unpack('<i', data_block[20:24])[0]
-            glyph.imageHeight = struct.unpack('<i', data_block[24:28])[0]
-            glyph.s = struct.unpack('<f', data_block[28:32])[0]
-            glyph.t = struct.unpack('<f', data_block[32:36])[0]
-            glyph.s2 = struct.unpack('<f', data_block[36:40])[0]
-            glyph.t2 = struct.unpack('<f', data_block[40:44])[0]
-            glyph.glyph = struct.unpack('<i', data_block[44:48])[0]
-            glyph.shaderName = '\"' + data_block[48:PER_GLYPH_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode('latin-1', errors='ignore') + '\"'
+
+            if is_unic_format:
+                if len(data_block) < PER_GLYPH_UNIC_DATA_SIZE:
+                    raise ValueError(f"[Error] the size of glyph data block is below the minimum \
+                                        {PER_GLYPH_UNIC_DATA_SIZE}, please make sure file has valid format.")
+
+                glyph.unicode = struct.unpack('<i', data_block[0:4])[0]
+                glyph.height = struct.unpack('<i', data_block[4:8])[0]
+                glyph.top = struct.unpack('<i', data_block[8:12])[0]
+                glyph.bottom = struct.unpack('<i', data_block[12:16])[0]
+                glyph.pitch = struct.unpack('<i', data_block[16:20])[0]
+                glyph.xSkip = struct.unpack('<i', data_block[20:24])[0]
+                glyph.imageWidth = struct.unpack('<i', data_block[24:28])[0]
+                glyph.imageHeight = struct.unpack('<i', data_block[28:32])[0]
+                glyph.s = struct.unpack('<f', data_block[32:36])[0]
+                glyph.t = struct.unpack('<f', data_block[36:40])[0]
+                glyph.s2 = struct.unpack('<f', data_block[40:44])[0]
+                glyph.t2 = struct.unpack('<f', data_block[44:48])[0]
+                glyph.glyph = struct.unpack('<i', data_block[48:52])[0]
+                glyph.shaderName = '\"' + data_block[52:PER_GLYPH_UNIC_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode(
+                    'latin-1', errors='ignore') + '\"'
+            else:
+                if len(data_block) < PER_GLYPH_DATA_SIZE:
+                    raise ValueError(f"[Error] the size of glyph data block is below the minimum \
+                                        {PER_GLYPH_DATA_SIZE}, please make sure file has valid format.")
+
+                glyph.unicode = glyphs_index
+                glyph.height = struct.unpack('<i', data_block[0:4])[0]
+                glyph.top = struct.unpack('<i', data_block[4:8])[0]
+                glyph.bottom = struct.unpack('<i', data_block[8:12])[0]
+                glyph.pitch = struct.unpack('<i', data_block[12:16])[0]
+                glyph.xSkip = struct.unpack('<i', data_block[16:20])[0]
+                glyph.imageWidth = struct.unpack('<i', data_block[20:24])[0]
+                glyph.imageHeight = struct.unpack('<i', data_block[24:28])[0]
+                glyph.s = struct.unpack('<f', data_block[28:32])[0]
+                glyph.t = struct.unpack('<f', data_block[32:36])[0]
+                glyph.s2 = struct.unpack('<f', data_block[36:40])[0]
+                glyph.t2 = struct.unpack('<f', data_block[40:44])[0]
+                glyph.glyph = struct.unpack('<i', data_block[44:48])[0]
+                glyph.shaderName = '\"' + data_block[48:PER_GLYPH_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode(
+                    'latin-1', errors='ignore') + '\"'
 
             return glyph
 
+        def _is_unic_format(file_handle: IO[bytes]) -> bool:
+            pos = file_handle.tell()
+
+            try:
+                file_handle.seek(0)
+                header = file_handle.read(4)
+                return header == GLOBAL_UNIC_HEADER.encode('utf-8')
+            finally:
+                file_handle.seek(pos)
+
         """ read_dat """
         with open(file=filepath, mode='rb') as f:
-            # fontinfo data block
-            f.seek(-GLOBAL_INFO_DATA_SIZE, 2)
-            global_data = f.read(GLOBAL_INFO_DATA_SIZE)
-
-            if len(global_data) < GLOBAL_INFO_DATA_SIZE:
-                raise ValueError("[Error] broken glyph data block!")
-
-            self.glyphScale = struct.unpack('<f', global_data[0:4])[0]
-            self.name = '\"' + global_data[4:GLOBAL_INFO_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode('latin-1',errors='ignore') + '\"'
-
-            # glyphs data block size
+            # file size
             f.seek(0, 2)
             file_size = f.tell()
-            glyphs_data_size = file_size - GLOBAL_INFO_DATA_SIZE
-            if glyphs_data_size % PER_GLYPH_DATA_SIZE != 0:
-                print(f"[Warning] data block is incompatible or broken!")
 
-            glyphs_count = glyphs_data_size // PER_GLYPH_DATA_SIZE
+            if file_size < GLOBAL_INFO_DATA_SIZE:
+                raise ValueError("[Error] invalid glyph data block!")
+
+            # global fontinfo data block
+            f.seek(-GLOBAL_INFO_DATA_SIZE, 2)
+            global_info_data = f.read(GLOBAL_INFO_DATA_SIZE)
+            self.glyphScale = struct.unpack('<f', global_info_data[0:4])[0]
+            self.name = '\"' + global_info_data[4:GLOBAL_INFO_DATA_SIZE].split(b'\x00', maxsplit=1)[0].decode('latin-1', errors='ignore') + '\"'
+
+            # read header, because we have a special data format for unicode
+            if _is_unic_format(f):
+                print("reading glyphs info from 'UNIC' format DAT...")
+                per_glyph_data_size = PER_GLYPH_UNIC_DATA_SIZE
+                glyphs_data_size = file_size - GLOBAL_INFO_DATA_SIZE - GLOBAL_UNIC_HEADER_SIZE
+                unic_format = True
+                start_pos = GLOBAL_UNIC_HEADER_SIZE
+            else:
+                print("reading glyphs info from DAT...")
+                per_glyph_data_size = PER_GLYPH_DATA_SIZE
+                glyphs_data_size = file_size - GLOBAL_INFO_DATA_SIZE
+                unic_format = False
+                start_pos = 0
+
+            # glyphs data block
+            if glyphs_data_size % per_glyph_data_size != 0:
+                print(f"[Warning] glyph data block is invalid or broken!")
+
+            glyphs_count = glyphs_data_size // per_glyph_data_size
             print(f"found {glyphs_count} data blocks of glyph")
 
-            f.seek(0)
+            f.seek(start_pos)
             glyphs_index = 0
             while glyphs_index < glyphs_count:
-                glyph_block = f.read(PER_GLYPH_DATA_SIZE)
-                if len(glyph_block) < PER_GLYPH_DATA_SIZE:
+                glyph_block = f.read(per_glyph_data_size)
+                if len(glyph_block) < per_glyph_data_size:
                     break
-                elif glyph_block == bytes(PER_GLYPH_DATA_SIZE):
+                elif glyph_block == bytes(per_glyph_data_size):     # all b"0x00"
                     # print(f"index {glyphs_index}: unuseful glyph data, skip...")
                     glyphs_index += 1
                     continue
 
                 try:
-                    glyph_info = parse_glyph_info(glyph_block, glyphs_index)
-                    self.glyphs[glyph_info.id] = glyph_info
+                    glyph_info = _parse_glyph_info(glyph_block, unic_format)
+                    self.glyphs[glyph_info.unicode] = glyph_info
                     glyphs_index += 1
 
                     if glyphs_index % 100 == 0:
@@ -178,7 +226,7 @@ class FontData:
                     print(f"Error: failed to parse glyph {glyphs_index}: {e}")
                     break
 
-    def write_fnt(self, filename: str = "", output_dir: str = "") -> NoReturn:
+    def write_fnt(self, filename: str = "", output_dir: str = "") -> None:
         """
         Before using this, use read_fnt() to initial data from a RTCW .fnt file
         :param filename: save file name
@@ -215,11 +263,11 @@ class FontData:
                     pass
                 else:
                     glyph = self.glyphs[i]
-                    if glyph.id in special_chars:
-                        f.write(f"\t// Character: '{special_chars[glyph.id]}' (U+{glyph.id:04X})\n")
+                    if glyph.unicode in special_chars:
+                        f.write(f"\t// Character: '{special_chars[glyph.unicode]}' (U+{glyph.unicode:04X})\n")
                     else:
-                        f.write(f"\t// Character: '{chr(glyph.id)}' (U+{glyph.id:04X})\n")
-                    f.write(f"\tchar {glyph.id}\n")
+                        f.write(f"\t// Character: '{chr(glyph.unicode)}' (U+{glyph.unicode:04X})\n")
+                    f.write(f"\tchar {glyph.unicode}\n")
                     f.write("\t{\n")
                     f.write(f"\t\theight {glyph.height}\n")
                     f.write(f"\t\ttop {glyph.top}\n")
@@ -242,7 +290,7 @@ class FontData:
             f.write(f"\tname {self.name}\n")
             f.write("}\n")
 
-    def write_dat(self, filename: str = "", output_dir: str = "") -> NoReturn:
+    def write_dat(self, filename: str = "", output_dir: str = "") -> None:
         """
         Before using this, use read_fnt() to initial data from a RTCW .fnt file
         :param filename: save file name
@@ -259,11 +307,11 @@ class FontData:
             return byte_data
 
         def dat_str_to_hex(string: str, byte_len=MAX_SHADER_NAME) -> bytes:
-            length = len(string)
-            if length > byte_len:
+            string_len = len(string)
+            if string_len > byte_len:
                 byte_data = string[:byte_len].encode('utf-8')
-            elif length < byte_len:
-                byte_data = string.encode('utf-8') + (byte_len - length) * b'\x00'
+            elif string_len < byte_len:
+                byte_data = string.encode('utf-8') + (byte_len - string_len) * b'\x00'
             else:
                 byte_data = string.encode('utf-8')
             return byte_data
@@ -283,13 +331,19 @@ class FontData:
             filename = os.path.join(self.output_dir, filename)
 
         with open(file=filename, mode='wb') as f:
+            # header
+            f.write(dat_str_to_hex(GLOBAL_UNIC_HEADER, byte_len=len(GLOBAL_UNIC_HEADER)))
+
             # glyphs
             indexes = self.glyphs.keys()
             for i in range(self.max_glyphs):
                 if i not in indexes:
-                    f.write(bytes(PER_GLYPH_DATA_SIZE))   # write PER_GDATA_LEN * b"0x00"
+                    # NOTE: only write valid glyph section
+                    continue
+                    # f.write(bytes(PER_GLYPH_DATA_SIZE))   # write PER_GDATA_LEN * b"0x00"
                 else:
                     glyph = self.glyphs[i]
+                    f.write(dat_int_to_hex(glyph.unicode))
                     f.write(dat_int_to_hex(glyph.height))
                     f.write(dat_int_to_hex(glyph.top))
                     f.write(dat_int_to_hex(glyph.bottom))
@@ -308,7 +362,7 @@ class FontData:
             f.write(dat_float_to_hex(self.glyphScale))
             f.write(dat_str_to_hex(self.name.replace('\"', ''), byte_len=MAX_QPATH))
 
-    def show_info(self, index: int = -1) -> NoReturn:
+    def show_info(self, index: int = -1) -> None:
         """
         :param index: show which one, set -1 to show all
         """
@@ -318,7 +372,7 @@ class FontData:
             indexes = self.glyphs.keys()
 
             for i in indexes:
-                if index >= 0 and i != index:
+                if 0 <= index != i:
                     continue
 
                 glyph = self.glyphs[i]
@@ -343,7 +397,7 @@ class FontData:
             print(f"glyphScale {self.glyphScale:.6f}")
             print(f"name {self.name}\n")
 
-    def show_info_need(self, index: int) -> NoReturn:
+    def show_info_specific(self, index: int) -> None:
         self.show_info(index)
 
 
@@ -392,8 +446,8 @@ def _remove_lines_comments(lines: List[str]) -> List[str]:
 
 # example
 if __name__ == '__main__':
-    fontInfo = FontData("./test/fontImage_36.fnt")
-    # fontInfo.show_info()
-    fontInfo.write_dat(output_dir="./test")
+    fontInfo = FontData("./test/fontImage_utf8.dat", max_glyphs=65536)
+    fontInfo.show_info()
+    # fontInfo.write_dat(output_dir="./test")
     # fontInfo.write_fnt(output_dir="./test")
 

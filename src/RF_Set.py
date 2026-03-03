@@ -8,8 +8,13 @@ if TYPE_CHECKING:
 MAX_SHADER_NAME = 32        # consistent with RTCW
 MAX_QPATH = 64
 
-PER_GLYPH_DATA_SIZE= 4 * 12 + MAX_SHADER_NAME       # per RTCW Glyph data block length
-GLOBAL_INFO_DATA_SIZE = 4 + MAX_QPATH               # RTCW global fontinfo data block length
+GLOBAL_INFO_DATA_SIZE = 4 + MAX_QPATH                   # RTCW global fontinfo data block length
+PER_GLYPH_DATA_SIZE = 4 * 12 + MAX_SHADER_NAME          # per RTCW Glyph data block length
+
+GLOBAL_UNIC_HEADER = "UNIC"
+GLOBAL_UNIC_HEADER_SIZE = len(GLOBAL_UNIC_HEADER.encode('utf-8'))
+PER_GLYPH_UNIC_DATA_SIZE = 4 * 13 + MAX_SHADER_NAME     # per unicode Glyph data block length
+
 
 """ =============== custom settings =============== """
 GLYPHS_PER_FONT = 256       # Note: set 256 for default RTCW
@@ -18,7 +23,7 @@ SYS_FONTS_DIR = "C:/Windows/Fonts"
 
 class Glyph:
     def __init__(self):
-        self.id: int = 0
+        self.unicode: int = 0
         self.height: int = 0
         self.top: int = 0
         self.bottom: int = 0
