@@ -31,6 +31,7 @@ By default, the script will:
 __Custom Configuration__
 
 You can adjust generation parameters in the generate() method:
+```python
 generator.generate(
     output_name=output_name,
     texture_width=1024,      # Texture atlas width
@@ -40,7 +41,7 @@ generator.generate(
     texture_margin=8,        # Margin around texture edges
     texture_format="tga"     # "tga" or "png" format
 )
-
+```
 
 __File Formats Generated__
 
