@@ -18,7 +18,7 @@ import traceback
 def generateImage():
     # Generate TGA font textures and base FNT data file
     ttf_path = "./ttffont/simhei.ttf"
-    font_size = 24
+    font_size = 36
     output_dir = "./test"
     output_name = f"fontImage_{font_size}"
 

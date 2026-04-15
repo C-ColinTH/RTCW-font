@@ -14,6 +14,9 @@ from RF_Set import *
 
 class FontImage:
     def __init__(self, ttf_path: str, font_size: int, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
+        """
+        font_size: 12, 18, 24, 36, 48, 60, 72
+        """
         self.ttf_glyphs: List[TTFGlyph] = []
         self.textures: List[Texture] = []
         self.glyphs: List[Glyph] = []
