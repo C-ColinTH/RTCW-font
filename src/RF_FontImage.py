@@ -228,8 +228,8 @@ class FontImage:
                 glyph.height = ttf_glyph.height
                 glyph.top = int(ttf_glyph.ascent + ttf_glyph.margin - ttf_glyph.bbox[1])
                 glyph.bottom = glyph.top - ttf_glyph.height
-                glyph.pitch = ttf_glyph.width
-                glyph.xSkip = ttf_glyph.width - ttf_glyph.margin * 2 + 2
+                glyph.pitch = ttf_glyph.width + ttf_glyph.margin
+                glyph.xSkip = ttf_glyph.width
                 glyph.imageWidth = ttf_glyph.width
                 glyph.imageHeight = ttf_glyph.height
 
