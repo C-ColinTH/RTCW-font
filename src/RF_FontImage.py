@@ -121,8 +121,8 @@ class FontImage:
                 ttf_glyph = TTFGlyph()
                 ttf_glyph.char_index = i
                 ttf_glyph.char = char
-                ttf_glyph.width = int(bbox[2] - bbox[0] + margin * 2)
-                ttf_glyph.height = int(bbox[3] - bbox[1] + margin * 2)
+                ttf_glyph.width = int(bbox[2] - bbox[0])
+                ttf_glyph.height = int(bbox[3] - bbox[1])
                 ttf_glyph.margin = margin
                 ttf_glyph.bbox = bbox
 
@@ -132,8 +132,8 @@ class FontImage:
                 ttf_glyph.image = Image.new("RGBA", (ttf_glyph.width, ttf_glyph.height), (0, 0, 0, 0))
                 draw = ImageDraw.Draw(ttf_glyph.image)
 
-                x_offset = margin - bbox[0]
-                y_offset = margin - bbox[1]
+                x_offset = -bbox[0]
+                y_offset = -bbox[1]
 
                 draw.text((x_offset, y_offset), char, font=font_pil, fill=(255, 255, 255, 255))
 
