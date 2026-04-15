@@ -450,7 +450,7 @@ def _remove_lines_comments(lines: List[str]) -> List[str]:
 
 # example
 if __name__ == '__main__':
-    fontInfo = FontData("./test/fontImage_utf8.dat", max_glyphs=65536)
+    fontInfo = FontData("./test/fontImage_utf8_0.dat", max_glyphs=65536)
     fontInfo.show_info()
     # fontInfo.write_dat(output_dir="./test")
     # fontInfo.write_fnt(output_dir="./test")

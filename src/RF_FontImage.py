@@ -85,7 +85,7 @@ class FontImage:
     def is_character_supported(self, char: str) -> bool:
         return char in self.available_chars
 
-    def render_glyphs(self, margin: int = 4) -> None:
+    def render_glyphs(self, margin: int, developer_mode: bool) -> None:
         if not self.font:
             self._load_font()
 
@@ -137,6 +137,19 @@ class FontImage:
 
                 draw.text((x_offset, y_offset), char, font=font_pil, fill=(255, 255, 255, 255))
 
+                # draw colored boundary lines for each font
+                if developer_mode:
+                    # texture range
+                    rect_x1, rect_y1 = 0, 0
+                    rect_x2, rect_y2 = ttf_glyph.width - 1, ttf_glyph.height - 1
+                    rect_x1, rect_x2 = min(rect_x1, rect_x2), max(rect_x1, rect_x2)
+                    rect_y1, rect_y2 = min(rect_y1, rect_y2), max(rect_y1, rect_y2)
+                    draw.rectangle(
+                        [rect_x1, rect_y1, rect_x2, rect_y2],
+                        outline=(255, 0, 0, 255),  # red
+                        width=1
+                    )
+
                 self.ttf_glyphs.append(ttf_glyph)
 
             except Exception as e:
@@ -149,8 +162,8 @@ class FontImage:
 
         print(f"Successfully rendered {len(self.ttf_glyphs)} characters!")
 
-    def pack_textures(self, texture_width: int = 1024, texture_height: int = 1024,
-                      char_spacing: int = 2, texture_margin: int = 16) -> None:
+    def pack_textures(self, texture_width: int, texture_height: int,
+                      char_spacing: int, texture_margin: int) -> None:
         self.textures = []
 
         current_x = texture_margin
@@ -333,16 +346,18 @@ class FontImage:
     def generate(self, output_name: str, save_fnt: bool = True,
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
-                    texture_format: str = "tga") -> None:
+                    texture_format: str = "tga", developer_mode: bool = False) -> None:
         """
-        texture_format: "tga", "png"
+        texture_format: "tga", "png"\n
+        developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
 
-        self.render_glyphs(margin=char_margin)
-        self.pack_textures(texture_width, texture_height, char_spacing, texture_margin)
-        self.generate_glyphs_data(output_name, format)
-        self.save_textures(output_name, format)
+        self.render_glyphs(margin=char_margin, developer_mode=developer_mode)
+        self.pack_textures(texture_width=texture_width, texture_height=texture_height,
+                            char_spacing=char_spacing, texture_margin=texture_margin)
+        self.generate_glyphs_data(texture_name_base=output_name, texture_format=format)
+        self.save_textures(texture_name_base=output_name, texture_format=format)
 
         if save_fnt:
             # generate .fnt data file
@@ -355,7 +370,7 @@ class FontImage:
 # example
 if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
-    # "simhei.ttf", "STXINWEI.TTF", "STKAITI.TTF", "方正粗黑宋简体.ttf"
+    # "simhei.ttf", "STXINWEI.TTF", "方正粗黑宋简体.ttf", "MSUIGHUB.TTF"
     generator = FontImage("./ttffont/STXINWEI.TTF", 36, "./test", max_glyphs=65536)
-    generator.generate("fontImage_36", False, texture_width=2048, texture_height=2048, texture_format="png")
+    generator.generate("fontImage_utf8_0", False, texture_width=2048, texture_height=2048, texture_format="png")
 
