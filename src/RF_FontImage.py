@@ -13,7 +13,8 @@ from RF_Set import *
 
 
 class FontImage:
-    def __init__(self, ttf_path: str, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
+    def __init__(self, ttf_path: str, char_ranges: Optional[List[Tuple[int, int]]] = None,
+                    output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
         """
         font_size: 12, 18, 24, 36, 48, 60, 72
         """
@@ -24,7 +25,9 @@ class FontImage:
         self.ttfont: Optional[TTFont] = None
         self.chars: List[str] = []
         self.available_chars: List[str] = []
+        self.char_sets: Set[int] = set()
 
+        self.char_ranges = char_ranges
         self.ttf_path: str = ttf_path
         self.font_size: int = 0
         self.output_dir: str = output_dir
@@ -36,11 +39,24 @@ class FontImage:
         if self.output_dir and not self.output_dir.isspace():
             os.makedirs(self.output_dir, exist_ok=True)
 
+        # user has specified the characters
+        if self.char_ranges:
+            self._set_char_sets()
+
         # path is not specified, user may want to call the read data function manually later
         if not self.ttf_path or self.ttf_path.isspace():
             return
         else:
             self._load_font()
+
+    def _set_char_sets(self) -> None:
+        if self.char_ranges is None:
+            return
+
+        for r in self.char_ranges:
+            for i in range(r[0], r[-1] + 1):
+                # [r[0], r[-1]], including the right boundary value
+                self.char_sets.add(i)
 
     def _load_font(self) -> None:
         try_path = self.ttf_path.replace('/', '\\')
@@ -56,10 +72,14 @@ class FontImage:
         elif try_path.lower().endswith(".ttc"):
             self.ttfont = TTFont(try_path, fontNumber=0)
 
-        print(f"Checking available characters in {try_path}...")
+        print(f"Checking available characters in \"{os.path.basename(try_path)}\"...")
         self.available_chars = self._get_available_characters()
         self.chars = self.available_chars
-        print(f"Font contains {len(self.available_chars)} available characters")
+        print(f"Font contains {len(self.available_chars)} available characters", end='')
+        if len(self.char_sets) > 0:
+            print(f", user has selected {len(self.char_sets)} characters")
+        else:
+            print(f", selected {len(self.chars)} characters")
 
     def _get_available_characters(self) -> List[str]:
         available_chars = set()
@@ -68,7 +88,6 @@ class FontImage:
         if not self.ttfont:
             raise AttributeError("Could not find cmap table")
 
-        
         try:
             cmap_table = self.ttfont['cmap'].tables
             for table in cmap_table:
@@ -87,26 +106,35 @@ class FontImage:
 
     def is_character_supported(self, char: str) -> bool:
         return char in self.available_chars
+    
+    def is_character_selected(self, char: str) -> bool:
+        unicode = ord(char[0])
+        return unicode in self.char_sets
 
     def render_glyphs(self, margin: int, developer_mode: bool) -> None:
+        self.glyphs = []
+
         if not self.ttfont:
             self._load_font()
 
         font_pil = ImageFont.truetype(self.ttf_path, self.font_size)
-        self.ttf_glyphs = []
         missing_count = 0
 
+        num = len(self.chars)
         for i, char in enumerate(self.chars):
             if i % 100 == 0:
-                print(f"\rRendering {i}/{len(self.chars)} characters...", end='', flush=True)
-            elif i == len(self.chars) - 1:
-                print(f"\rRendering {len(self.chars)}/{len(self.chars)} characters...", flush=True)
+                print(f"\rProgress {i}/{num} ...", end='', flush=True)
+            elif i == num - 1:
+                print(f"\rProgress {num}/{num} ...", flush=True)
 
             try:
                 is_reserved_char = ord(char) < 256    # reserve 256 base ascii characters
-                if not self.is_character_supported(char) and not is_reserved_char:
-                    missing_count += 1
-                    continue
+                if not is_reserved_char:
+                    if len(self.char_sets) > 0 and not self.is_character_selected(char):
+                        continue
+                    if not self.is_character_supported(char):
+                        missing_count += 1
+                        continue
 
                 bbox = font_pil.getbbox(char)
                 if not bbox:
@@ -309,7 +337,7 @@ class FontImage:
         with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
             # some information about generated font
             f.write(f"// RTCW Font File\n")
-            f.write(f"// Generated from: {os.path.basename(self.ttf_path)}\n")
+            f.write(f"// Generated from: \"{os.path.basename(self.ttf_path)}\"\n")
             f.write(f"// Font size: {self.font_size}\n")
             f.write(f"// Total characters: {len(self.glyphs)}\n")
             f.write(f"// Texture base name: {texture_name_base}\n\n")
@@ -375,6 +403,9 @@ class FontImage:
 if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
     # "simhei.ttf", "STXINWEI.TTF", "方正粗黑宋简体.ttf", "MSUIGHUB.TTF"
-    generator = FontImage("./ttffont/STXINWEI.TTF", "./test", max_glyphs=65536)
+    ttf_path = "./test/ttf/simhei.ttf"
+    char_ranges = [(0x0000, 0x04FF), (0x3200, 0x05AFF)]
+
+    generator = FontImage(ttf_path, char_ranges, "./test", max_glyphs=65536)
     generator.generate("fontImage_utf8_0", 36, True, texture_width=2048, texture_height=2048, texture_format="png")
 
