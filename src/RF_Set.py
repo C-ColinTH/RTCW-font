@@ -2,6 +2,7 @@ from typing import Tuple, List, Set, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL import Image
+    from fontTools.ttLib import TTFont
 
 
 """ ========== RTCW consistent settings ========== """
@@ -41,8 +42,9 @@ class Glyph:
 
 class TTFGlyph:
     def __init__(self):
-        self.char_index: int = 0
+        self.char_index: int = 0    # not the codepoint
         self.char: str = ''
+        self.unicode: int = 0
         self.x: int = 0
         self.y: int = 0
         self.width: int = 0
@@ -62,3 +64,10 @@ class Texture:
         self.height: int = 0
         self.ttf_glyphs: List[TTFGlyph] = []
 
+
+class MultiTable:
+    def __init__(self):
+        self.ttf_path: str = ""
+        self.ttfont: Optional[TTFont] = None
+        self.available_chars: List[str] = []
+        self.selected_chars: Set[int] = set()

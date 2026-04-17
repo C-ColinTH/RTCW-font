@@ -1,37 +1,32 @@
 """
-    RF_FontImage.py
-    Generate TGA bitmap font textures and base FNT data file for RTCW from TrueTypeFont file.
+    RF_FontImageMulti.py
+    Generate TGA bitmap font textures and base FNT data file for RTCW from multiple TrueTypeFont files.
 """
 
-
-from typing import Tuple, List, Set, Dict, Optional, NoReturn
+from typing import Tuple, List, Set, Dict, Optional, Union, NoReturn
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._c_m_a_p import table__c_m_a_p
+
 from RF_Set import *
 
 
-class FontImage:
-    def __init__(self, ttf_path: str, char_ranges: Optional[List[Tuple[int, int]]] = None,
+class FontImageMulti:
+    def __init__(self, corresponding_table: List[List[Union[str, List[Tuple[int, int]]]]],
                     output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
-        """
-        font_size: 12, 18, 24, 36, 48, 60, 72
-        """
         self.ttf_glyphs: List[TTFGlyph] = []
         self.textures: List[Texture] = []
         self.glyphs: List[Glyph] = []
 
-        self.ttfont: Optional[TTFont] = None
-        self.chars: List[str] = []
-        self.available_chars: List[str] = []
-        self.char_sets: Set[int] = set()
-
-        self.char_ranges = char_ranges
-        self.ttf_path: str = ttf_path
         self.font_size: int = 0
         self.output_dir: str = output_dir
         self.max_glyphs: int = max_glyphs
+        self.corresponding_table: List = corresponding_table
+
+        # ttf path, TTFont, available chars, selected chars set
+        self.multi_table: List[MultiTable] = []
 
         self._startup()
 
@@ -39,27 +34,31 @@ class FontImage:
         if self.output_dir and not self.output_dir.isspace():
             os.makedirs(self.output_dir, exist_ok=True)
 
-        # user has specified the characters
-        if self.char_ranges:
-            self._set_char_sets()
+        self._set_multi_table()
 
-        # path is not specified, user may want to call the read data function manually later
-        if not self.ttf_path or self.ttf_path.isspace():
-            return
-        else:
-            self._load_font()
-
-    def _set_char_sets(self) -> None:
-        if self.char_ranges is None:
+    def _set_multi_table(self) -> None:
+        cor_table = self.corresponding_table
+        if cor_table is None:
             return
 
-        for r in self.char_ranges:
-            for i in range(r[0], r[-1] + 1):
-                # [r[0], r[-1]], including the right boundary value
-                self.char_sets.add(i)
+        for ctable in cor_table:
+            filepath: str = ctable[0]
+            char_ranges: List[Tuple[int, int]] = ctable[1]
 
-    def _load_font(self) -> None:
-        try_path = self.ttf_path.replace('/', '\\')
+            mtable = MultiTable()
+            mtable.ttf_path = filepath
+            mtable.ttfont = self._load_font(filepath)
+            if mtable.ttfont is None:
+                continue
+            mtable.available_chars = self._get_available_characters(mtable.ttfont)
+            mtable.selected_chars = self._set_char_sets(char_ranges)
+
+            self.multi_table.append(mtable)
+
+    def _load_font(self, ttf_path: str) -> Optional[TTFont]:
+        try_path = ttf_path.replace('/', '\\')
+        ttfont = None
+
         if not os.path.exists(try_path):
             print(f"\"{try_path}\" not exist, ", end='')
             try_path = SYS_FONTS_DIR.replace('/', '\\') + "\\" + try_path.split('\\')[-1]
@@ -68,133 +67,154 @@ class FontImage:
             raise FileNotFoundError(f"[Error] couldn't open \"{try_path}\"")
 
         if try_path.lower().endswith(".ttf"):
-            self.ttfont = TTFont(try_path)
+            ttfont = TTFont(try_path)
         elif try_path.lower().endswith(".ttc"):
-            self.ttfont = TTFont(try_path, fontNumber=0)
+            ttfont = TTFont(try_path, fontNumber=0)
 
-        print(f"Checking available characters in \"{os.path.basename(try_path)}\"...")
-        self.available_chars = self._get_available_characters()
-        self.chars = self.available_chars
-        print(f"Font contains {len(self.available_chars)} available characters", end='')
-        if len(self.char_sets) > 0:
-            print(f", user has selected {len(self.char_sets)} characters")
-        else:
-            print(f", selected {len(self.chars)} characters")
+        if ttfont is None:
+            print(f"[Error] coulnd't load font data from \"{try_path}\"")
 
-    def _get_available_characters(self) -> List[str]:
+        return ttfont
+
+    def _get_available_characters(self, ttfont: TTFont) -> List[str]:
         available_chars = set()
         available_chars.update([chr(i) for i in range(256)])
 
-        if not self.ttfont:
+        if not ttfont:
             raise AttributeError("Could not find cmap table")
 
         try:
-            cmap_table = self.ttfont['cmap'].tables
+            cmap_table = ttfont['cmap'].tables
             for table in cmap_table:
                 if table.format == 4:  # the mostly used format
-                    for code in table.cmap.keys():
-                        if 0 <= code <= self.max_glyphs:  # Unicode range
-                            available_chars.add(chr(code))
+                    for codepoint in table.cmap.keys():
+                        if 0 <= codepoint <= self.max_glyphs:  # Unicode range
+                            available_chars.add(chr(codepoint))
         except:
-            best_table = self.ttfont.getBestCmap()
+            best_table = ttfont.getBestCmap()
             if best_table:
-                for code in best_table.keys():
-                    if 0 <= code <= self.max_glyphs:
-                        available_chars.add(chr(code))
+                for codepoint in best_table.keys():
+                    if 0 <= codepoint <= self.max_glyphs:
+                        available_chars.add(chr(codepoint))
 
+        # need to be ordered, so return a list type
         return sorted(list(available_chars))
 
-    def is_character_supported(self, char: str) -> bool:
-        return char in self.available_chars
-    
-    def is_character_selected(self, char: str) -> bool:
+    def _set_char_sets(self, char_ranges: List[Tuple[int, int]]) -> Set[int]:
+        selected_chars = set()
+        for r in char_ranges:
+            for i in range(r[0], r[-1] + 1):
+                # [r[0], r[-1]], including the right boundary value
+                selected_chars.add(i)
+
+        return selected_chars
+
+    def is_character_supported(self, char: str, available_chars: List[str]) -> bool:
+        return char in available_chars
+
+    def is_character_selected(self, char: str, selected_chars: Set[int]) -> bool:
         unicode = ord(char[0])
-        return unicode in self.char_sets
+        return unicode in selected_chars
 
     def render_glyphs(self, margin: int, developer_mode: bool) -> None:
-        self.glyphs = []
+        self.ttf_glyphs = []
 
-        if not self.ttfont:
-            self._load_font()
+        # prevent multiple same codepoint font structure
+        # Note: if there are multiple same codepoint font structure, the latter will overwrite the former
+        ttf_glyphs_dict: Dict[int, TTFGlyph] = {}
 
-        font_pil = ImageFont.truetype(self.ttf_path, self.font_size)
-        missing_count = 0
+        n = 0
+        for mtable in self.multi_table:
+            ttf_basename = os.path.basename(mtable.ttf_path)
+            available_chars = mtable.available_chars
+            selected_chars = mtable.selected_chars
 
-        num = len(self.chars)
-        for i, char in enumerate(self.chars):
-            if i % 100 == 0:
-                print(f"\rProgress {i}/{num} ...", end='', flush=True)
-            elif i == num - 1:
-                print(f"\rProgress {num}/{num} ...", flush=True)
+            font_pil = ImageFont.truetype(mtable.ttf_path, self.font_size)
 
-            try:
-                is_reserved_char = ord(char) < 256    # reserve 256 base ascii characters
-                if not is_reserved_char:
-                    if len(self.char_sets) > 0 and not self.is_character_selected(char):
-                        continue
-                    if not self.is_character_supported(char):
-                        missing_count += 1
-                        continue
+            missing_count = 0
+            num = len(available_chars)
+            print(f"rendering glyphs from \"{ttf_basename}\"")
+            for i, char in enumerate(available_chars):
+                if i % 100 == 0:
+                    print(f"\rProgress {i}/{num} ...", end='', flush=True)
+                elif i == num - 1:
+                    print(f"\rProgress {num}/{num} ...", flush=True)
 
-                bbox = font_pil.getbbox(char)
-                if not bbox:
-                    if is_reserved_char:
-                        bbox = font_pil.getbbox(' ')
-                    else:
-                        missing_count += 1
-                        continue
+                try:
+                    is_reserved_char = ord(char) < 256 and n == 0   # reserve 256 base ascii characters
+                    if not is_reserved_char:
+                        if len(selected_chars) > 0 and not self.is_character_selected(char, selected_chars):
+                            continue
+                        if not self.is_character_supported(char, available_chars):
+                            missing_count += 1
+                            continue
 
-                # check if bbox is valid
-                # if bbox[2] - bbox[0] <= 0 or bbox[3] - bbox[1] <= 0:
-                #     continue
+                    bbox = font_pil.getbbox(char)
+                    if not bbox:
+                        if is_reserved_char:
+                            bbox = font_pil.getbbox(' ')
+                        else:
+                            missing_count += 1
+                            continue
 
-                ttf_glyph = TTFGlyph()
-                ttf_glyph.char_index = i
-                ttf_glyph.char = char
-                ttf_glyph.unicode = ord(char[0])
-                ttf_glyph.width = int(bbox[2] - bbox[0])
-                ttf_glyph.height = int(bbox[3] - bbox[1])
-                ttf_glyph.margin = margin
-                ttf_glyph.bbox = bbox
+                    # check if bbox is valid
+                    # if bbox[2] - bbox[0] <= 0 or bbox[3] - bbox[1] <= 0:
+                    #     continue
 
-                metrics = font_pil.getmetrics()
-                ttf_glyph.ascent, ttf_glyph.descent = metrics
+                    ttf_glyph = TTFGlyph()
+                    ttf_glyph.char_index = i
+                    ttf_glyph.char = char
+                    ttf_glyph.unicode = ord(char[0])
+                    ttf_glyph.width = int(bbox[2] - bbox[0])
+                    ttf_glyph.height = int(bbox[3] - bbox[1])
+                    ttf_glyph.margin = margin
+                    ttf_glyph.bbox = bbox
 
-                ttf_glyph.image = Image.new("RGBA", (ttf_glyph.width, ttf_glyph.height), (0, 0, 0, 0))
-                draw = ImageDraw.Draw(ttf_glyph.image)
+                    metrics = font_pil.getmetrics()
+                    ttf_glyph.ascent, ttf_glyph.descent = metrics
 
-                x_offset = -bbox[0]
-                y_offset = -bbox[1]
+                    ttf_glyph.image = Image.new("RGBA", (ttf_glyph.width, ttf_glyph.height), (0, 0, 0, 0))
+                    draw = ImageDraw.Draw(ttf_glyph.image)
 
-                draw.text((x_offset, y_offset), char, font=font_pil, fill=(255, 255, 255, 255))
+                    x_offset = -bbox[0]
+                    y_offset = -bbox[1]
 
-                # draw colored boundary lines for each font
-                if developer_mode:
-                    # texture range
-                    rect_x1, rect_y1 = 0, 0
-                    rect_x2, rect_y2 = ttf_glyph.width - 1, ttf_glyph.height - 1
-                    rect_x1, rect_x2 = min(rect_x1, rect_x2), max(rect_x1, rect_x2)
-                    rect_y1, rect_y2 = min(rect_y1, rect_y2), max(rect_y1, rect_y2)
-                    draw.rectangle(
-                        [rect_x1, rect_y1, rect_x2, rect_y2],
-                        outline=(255, 0, 0, 255),  # red
-                        width=1
-                    )
+                    draw.text((x_offset, y_offset), char, font=font_pil, fill=(255, 255, 255, 255))
 
-                self.ttf_glyphs.append(ttf_glyph)
+                    # draw the boundary line for debug
+                    if developer_mode:
+                        # texture range
+                        rect_x1 = 0
+                        rect_y1 = 0
+                        rect_x2 = ttf_glyph.width - 1
+                        rect_y2 = ttf_glyph.height - 1
+                        rect_x1, rect_x2 = min(rect_x1, rect_x2), max(rect_x1, rect_x2)
+                        rect_y1, rect_y2 = min(rect_y1, rect_y2), max(rect_y1, rect_y2)
+                        draw.rectangle(
+                            [rect_x1, rect_y1, rect_x2, rect_y2],
+                            outline=(255, 0, 0, 255),  # red
+                            width=1
+                        )
 
-            except Exception as e:
-                print(f"[Warning] failed to render character '{char}' (U+{ord(char):04X}): {e}")
-                missing_count += 1
-                continue
+                    ttf_glyphs_dict[ttf_glyph.unicode] = ttf_glyph
+                    # self.ttf_glyphs.append(ttf_glyph)
 
-        if missing_count > 0:
-            print(f"{missing_count} characters are not rendered, they may unsupported in the selected TrueType file")
+                except Exception as e:
+                    print(f"[Warning] failed to render character '{char}' (U+{ord(char):04X}): {e}")
+                    missing_count += 1
+                    continue
 
+            if missing_count > 0:
+                print(f"{missing_count} characters are not rendered, they may unsupported in \"{ttf_basename}\"")
+
+            n += 1
+
+        self.ttf_glyphs = list(ttf_glyphs_dict.values())
+        self.ttf_glyphs = sorted(self.ttf_glyphs, key=lambda g: g.char_index, reverse=False)
         print(f"Successfully rendered {len(self.ttf_glyphs)} characters!")
 
     def pack_textures(self, texture_width: int, texture_height: int,
-                      char_spacing: int, texture_margin: int) -> None:
+                        char_spacing: int, texture_margin: int) -> None:
         self.textures = []
 
         current_x = texture_margin
@@ -221,7 +241,6 @@ class FontImage:
             # if need to create a new texture file
             if current_y + ttf_glyph.height > texture_height - texture_margin:
                 self.textures.append(current_texture)
-
                 texture_index += 1
                 current_texture = Texture()
                 current_texture.texture_index = texture_index
@@ -254,9 +273,12 @@ class FontImage:
             for ttf_glyph in texture.ttf_glyphs:
                 glyph = Glyph()
                 glyph.unicode = ord(ttf_glyph.char)
+
                 glyph.height = ttf_glyph.height
                 glyph.top = int(ttf_glyph.ascent + ttf_glyph.margin - ttf_glyph.bbox[1])
                 glyph.bottom = glyph.top - ttf_glyph.height
+                # glyph.pitch = ttf_glyph.width
+                # glyph.xSkip = ttf_glyph.width - ttf_glyph.margin * 2 + 2
                 glyph.pitch = ttf_glyph.width + ttf_glyph.margin
                 glyph.xSkip = ttf_glyph.width
                 glyph.imageWidth = ttf_glyph.width
@@ -337,7 +359,11 @@ class FontImage:
         with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
             # some information about generated font
             f.write(f"// RTCW Font File\n")
-            f.write(f"// Generated from: \"{os.path.basename(self.ttf_path)}\"\n")
+            f.write(f"// Generated from:\n")
+            for i in range(len(self.multi_table)):
+                ttf_basename = os.path.basename(self.multi_table[i].ttf_path)
+                char_ranges = self.corresponding_table[i][-1]
+                f.write(f"// \t\"{ttf_basename}\": {char_ranges}\n")
             f.write(f"// Font size: {self.font_size}\n")
             f.write(f"// Total characters: {len(self.glyphs)}\n")
             f.write(f"// Texture base name: {texture_name_base}\n\n")
@@ -372,12 +398,12 @@ class FontImage:
             f.write(f"\tname \"{texture_name_base}\"\n")
             f.write("}\n")
 
-    def generate(self, output_name: str, font_size: int = 36, save_fnt: bool = True, 
+    def generate(self, output_name: str, font_size: int = 36, save_dat: bool = True,
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
                     texture_format: str = "tga", developer_mode: bool = False) -> None:
         """
-        texture_format: "tga", "png"\n
+        texture_format: "tga", "png"
         developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
@@ -391,10 +417,10 @@ class FontImage:
         self.generate_glyphs_data(texture_name_base=output_name, texture_format=format)
         self.save_textures(texture_name_base=output_name, texture_format=format)
 
-        if save_fnt:
+        if save_dat:
             # generate .fnt data file
             fnt_path = os.path.join(self.output_dir, f"{output_name}.fnt")
-            self.save_fnt_file(fnt_path, output_name)
+            self.save_fnt_file(filepath=fnt_path, texture_name_base=output_name)
 
         print(f"Generation completed! Created {len(self.textures)} {format.upper()} files and 1 FNT file")
 
@@ -402,11 +428,35 @@ class FontImage:
 # example
 if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
-    # "simhei.ttf", "STXINWEI.TTF", "方正粗黑宋简体.ttf", "MSUIGHUB.TTF"
-    ttf_path = "./test/ttf/simhei.ttf"
-    char_ranges = [(0x0000, 0x04FF), (0x3200, 0x05AFF)]
 
-    generator = FontImage(ttf_path, char_ranges, "./test", max_glyphs=65536)
-    generator.generate("fontImage_utf8_0", 36, True, texture_width=2048, texture_height=2048,
+    table = [
+        # Chinese, CJK,
+        [
+            "./test/ttf/simhei.ttf",
+            [(0x0500, 0x058F), (0x3200, 0x10000)]
+        ],
+        # Arabic
+        [
+            "./test/ttf/MSUIGHUB.TTF",
+            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
+        ],
+        # Korean
+        [
+            "./test/ttf/malgun.ttf",
+            [(0x1100, 0x11FF), (0x3130, 0x318F), (0xAC00, 0xD7AF), (0xA960, 0xA97F), (0xD7B0, 0xD7FF)]
+        ],
+        # Japanese
+        [
+            "./test/ttf/YuGothM.ttc",
+            [(0x3040, 0x309F), (0x30A0, 0x30FF), (0x3100, 0x32FF)]
+        ],
+        # Eastern and Western European fonts, Ascill
+        [
+            "./test/ttf/DejaVuSerif.ttf",
+            [(0x0000, 0x04FF)]
+        ]
+    ]
+
+    generator = FontImageMulti(table, "./output", max_glyphs=65536)
+    generator.generate("fontImage_utf8_1", 36, True, texture_width=2048, texture_height=2048,
                         texture_format="png", developer_mode=False)
-

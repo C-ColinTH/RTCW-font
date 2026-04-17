@@ -15,14 +15,14 @@ class FontData:
     read FNT and DAT files or convert FNT and DAT files to each other for RTCW.
     """
 
-    def __init__(self, filepath: str = "", output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
+    def __init__(self, file_path: str = "", output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
         self.glyphs: Dict[int, Glyph] = {}
         self.glyphScale: float = 0.5
         self.name: str = ""
 
         self.max_glyphs = max_glyphs
         self.output_dir: str = output_dir
-        self.file_path: str = filepath
+        self.file_path: str = file_path
 
         self._startup()
 
