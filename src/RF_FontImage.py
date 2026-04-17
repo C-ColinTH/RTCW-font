@@ -222,8 +222,6 @@ class FontImage:
         print(f"Created {len(self.textures)} texture pages")
 
     def generate_glyphs_data(self, texture_name_base: str, texture_format: str) -> None:
-        self.glyphs = []
-
         for texture in self.textures:
             for ttf_glyph in texture.ttf_glyphs:
                 glyph = Glyph()
@@ -355,6 +353,8 @@ class FontImage:
         developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
+        self.glyphs = []
+        self.ttf_glyphs = []
 
         self.render_glyphs(margin=char_margin, developer_mode=developer_mode)
         self.pack_textures(texture_width=texture_width, texture_height=texture_height,
