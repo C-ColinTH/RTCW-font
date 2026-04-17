@@ -13,7 +13,7 @@ from RF_Set import *
 
 
 class FontImage:
-    def __init__(self, ttf_path: str, font_size: int, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
+    def __init__(self, ttf_path: str, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
         """
         font_size: 12, 18, 24, 36, 48, 60, 72
         """
@@ -21,12 +21,12 @@ class FontImage:
         self.textures: List[Texture] = []
         self.glyphs: List[Glyph] = []
 
-        self.font: Optional[TTFont] = None
+        self.ttfont: Optional[TTFont] = None
         self.chars: List[str] = []
         self.available_chars: List[str] = []
 
         self.ttf_path: str = ttf_path
-        self.font_size: int = font_size
+        self.font_size: int = 0
         self.output_dir: str = output_dir
         self.max_glyphs: int = max_glyphs
 
@@ -52,9 +52,9 @@ class FontImage:
             raise FileNotFoundError(f"[Error] couldn't open \"{self.ttf_path}\"")
 
         if try_path.lower().endswith(".ttf"):
-            self.font = TTFont(try_path)
+            self.ttfont = TTFont(try_path)
         elif try_path.lower().endswith(".ttc"):
-            self.font = TTFont(try_path, fontNumber=0)
+            self.ttfont = TTFont(try_path, fontNumber=0)
 
         print(f"Checking available characters in {try_path}...")
         self.available_chars = self._get_available_characters()
@@ -65,19 +65,19 @@ class FontImage:
         available_chars = set()
         available_chars.update([chr(i) for i in range(256)])
 
-        if not self.font:
+        if not self.ttfont:
             raise AttributeError("Could not find cmap table")
 
         
         try:
-            cmap_table = self.font['cmap'].tables
+            cmap_table = self.ttfont['cmap'].tables
             for table in cmap_table:
                 if table.format == 4:  # the mostly used format
                     for code in table.cmap.keys():
                         if 0 <= code <= self.max_glyphs:  # Unicode range
                             available_chars.add(chr(code))
         except:
-            best_table = self.font.getBestCmap()
+            best_table = self.ttfont.getBestCmap()
             if best_table:
                 for code in best_table.keys():
                     if 0 <= code <= self.max_glyphs:
@@ -89,7 +89,7 @@ class FontImage:
         return char in self.available_chars
 
     def render_glyphs(self, margin: int, developer_mode: bool) -> None:
-        if not self.font:
+        if not self.ttfont:
             self._load_font()
 
         font_pil = ImageFont.truetype(self.ttf_path, self.font_size)
@@ -344,7 +344,7 @@ class FontImage:
             f.write(f"\tname \"{texture_name_base}\"\n")
             f.write("}\n")
 
-    def generate(self, output_name: str, save_fnt: bool = True,
+    def generate(self, output_name: str, font_size: int = 36, save_fnt: bool = True, 
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
                     texture_format: str = "tga", developer_mode: bool = False) -> None:
@@ -353,6 +353,7 @@ class FontImage:
         developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
+        self.font_size = font_size
         self.glyphs = []
         self.ttf_glyphs = []
 
@@ -374,6 +375,6 @@ class FontImage:
 if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
     # "simhei.ttf", "STXINWEI.TTF", "方正粗黑宋简体.ttf", "MSUIGHUB.TTF"
-    generator = FontImage("./ttffont/STXINWEI.TTF", 36, "./test", max_glyphs=65536)
-    generator.generate("fontImage_utf8_0", False, texture_width=2048, texture_height=2048, texture_format="png")
+    generator = FontImage("./ttffont/STXINWEI.TTF", "./test", max_glyphs=65536)
+    generator.generate("fontImage_utf8_0", 36, True, texture_width=2048, texture_height=2048, texture_format="png")
 

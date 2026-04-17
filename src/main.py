@@ -22,9 +22,10 @@ def generateImage():
     output_dir = "./test"
     output_name = f"fontImage_{font_size}"
 
-    generator = FontImage(ttf_path, font_size, output_dir)
+    generator = FontImage(ttf_path,  output_dir)
     generator.generate(
         output_name=output_name,
+        font_size=font_size,
         texture_width=1024,
         texture_height=1024,
         char_margin=2,
