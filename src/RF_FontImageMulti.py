@@ -158,8 +158,8 @@ class FontImageMulti:
                             continue
 
                     # check if bbox is valid
-                    # if bbox[2] - bbox[0] <= 0 or bbox[3] - bbox[1] <= 0:
-                    #     continue
+                    if bbox[2] - bbox[0] <= 0 and bbox[3] - bbox[1] <= 0:
+                        continue
 
                     ttf_glyph = TTFGlyph()
                     ttf_glyph.char_index = i
