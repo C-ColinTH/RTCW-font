@@ -198,7 +198,6 @@ class FontImageMulti:
                         )
 
                     ttf_glyphs_dict[ttf_glyph.unicode] = ttf_glyph
-                    # self.ttf_glyphs.append(ttf_glyph)
 
                 except Exception as e:
                     print(f"[Warning] failed to render character '{char}' (U+{ord(char):04X}): {e}")
@@ -342,7 +341,6 @@ class FontImageMulti:
             completed = 0
             total = len(tasks)
 
-            # 收集结果
             for plan_task in as_completed(planned_tasks_dict):
                 try:
                     texture_index, texture_name, width, height = plan_task.result()
@@ -363,7 +361,7 @@ class FontImageMulti:
             if ttf_glyph.image:
                 atlas.paste(ttf_glyph.image, (ttf_glyph.x, ttf_glyph.y))
 
-        # 生成文件名
+        # each texture filename
         texture_name = f"{texture_name_base}_{texture_index:d}"
         if format == "tga":
             tga_path = os.path.join(output_dir, f"{texture_name}.tga")
