@@ -1,6 +1,8 @@
 """
     RF_FontImage.py
     Generate TGA bitmap font textures and base FNT data file for RTCW from TrueTypeFont file.
+
+    Outdated, please see and use RF_FontImageMulti.py
 """
 
 
