@@ -17,9 +17,12 @@ __Quick Start__
 
 1. Clone or download the scource files.
 2. Install dependencies libraries.
-3. Place your TrueType font files (.ttf or .ttc) in a directory (e.g., ./ttffont/)
-4. Modify the main.py file to configure your font generation by editing some parameters in main.py
-5. Execute the main script: `python main.py`
+ ```bash
+pip install -r requirements.txt
+```
+4. Place your TrueType font files (.ttf or .ttc) in a directory (e.g., ./ttffont/)
+5. Modify the main.py file to configure your font generation by editing some parameters in main.py
+6. Execute the main script: `python main.py`
 
 
 By default, the script will:
