@@ -210,7 +210,7 @@ class FontImageMulti:
             n += 1
 
         self.ttf_glyphs = list(ttf_glyphs_dict.values())
-        self.ttf_glyphs = sorted(self.ttf_glyphs, key=lambda g: g.char_index, reverse=False)
+        self.ttf_glyphs = sorted(self.ttf_glyphs, key=lambda g: g.unicode, reverse=False)
         print(f"Successfully rendered {len(self.ttf_glyphs)} characters!")
 
     def pack_textures(self, texture_width: int, texture_height: int,
@@ -430,10 +430,12 @@ if __name__ == "__main__":
     # the meaning of font_size is not quite the same as in rtcw
 
     table = [
-        # Chinese, CJK,
+        # Chinese, CJK
+        # as base template, if the specified font with the same code point is used later
+        # the corresponding font data will be overwritten, so set full range (0 - 0x10000) in this
         [
             "./test/ttf/simhei.ttf",
-            [(0x0500, 0x058F), (0x3200, 0x10000)]
+            [(0x0000, 0x10000)]
         ],
         # Arabic
         [
