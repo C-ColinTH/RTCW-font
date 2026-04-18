@@ -12,17 +12,47 @@ need to modify RTCW code to support more fonts. For default RTCW, it should be s
 
 from RF_FontData import FontData
 from RF_FontImage import FontImage
+from RF_FontImageMulti import FontImageMulti
 import traceback
 
 
 def generateImage():
     # Generate TGA font textures and base FNT data file
-    ttf_path = "./ttffont/simhei.ttf"
+    table = [
+        # Chinese, CJK
+        # as base template, if the specified font with the same code point is used later
+        # the corresponding font data will be overwritten, so set full range (0 - 0x10000) in this
+        [
+            "./test/ttf/simhei.ttf",
+            [(0x0000, 0x10000)]
+        ],
+        # Arabic
+        [
+            "./test/ttf/MSUIGHUB.TTF",
+            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
+        ],
+        # Korean
+        [
+            "./test/ttf/malgun.ttf",
+            [(0x1100, 0x11FF), (0x3130, 0x318F), (0xAC00, 0xD7AF), (0xA960, 0xA97F), (0xD7B0, 0xD7FF)]
+        ],
+        # Japanese
+        [
+            "./test/ttf/YuGothM.ttc",
+            [(0x3040, 0x309F), (0x30A0, 0x30FF), (0x3100, 0x32FF)]
+        ],
+        # Eastern and Western European fonts, Ascill
+        [
+            "./test/ttf/DejaVuSerif.ttf",
+            [(0x0000, 0x04FF)]
+        ]
+    ]
+
     font_size = 36
     output_dir = "./test"
     output_name = f"fontImage_{font_size}"
 
-    generator = FontImage(ttf_path=ttf_path, output_dir=output_dir)
+    generator = FontImageMulti(corresponding_table=table, output_dir=output_dir, max_glyphs=max_glyphs)
     generator.generate(
         output_name=output_name,
         font_size=font_size,
@@ -30,7 +60,8 @@ def generateImage():
         texture_height=1024,
         char_margin=2,
         char_spacing=2,
-        texture_margin=8
+        texture_margin=8,
+        developer_mode=False
     )
 
 
@@ -39,14 +70,19 @@ def convertData():
     file_path = "./test/fontImage_24.fnt"
     output_dir = "./test"
 
-    fontinfo = FontData(file_path=file_path, output_dir=output_dir)
-    fontinfo.write_dat()
+    fontinfo = FontData(
+        file_path=file_path,
+        output_dir=output_dir,
+        max_glyphs=max_glyphs
+    )
+
+    if file_path.split('.')[-1] == "fnt":
+        fontinfo.write_dat()
+    elif file_path.split('.')[-1] == "dat":
+        fontinfo.write_fnt()
 
 
 def main():
-    GenerateImage = True
-    GenerateData = True
-
     if GenerateImage:
         generateImage()
     if GenerateData:
@@ -54,6 +90,10 @@ def main():
 
 
 if __name__ == '__main__':
+    GenerateImage = True
+    GenerateData = True
+    max_glyphs = 256
+
     try:
         main()
     except Exception:

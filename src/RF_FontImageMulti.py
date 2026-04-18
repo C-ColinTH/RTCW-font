@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._c_m_a_p import table__c_m_a_p
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from RF_Set import *
 
@@ -317,7 +318,66 @@ class FontImageMulti:
 
             print(f"Saved texture: {texture_name}.{format} ({texture.width}x{texture.height})")
 
-    def _save_tga_for_rtcw(self, image: Image.Image, filepath: str) -> None:
+    def save_textures_parallel(self, texture_name_base: str, texture_format: str) -> None:
+        format: str = texture_format.lower()
+        tasks = []
+        for i, texture in enumerate(self.textures):
+            tasks.append(
+                (
+                    texture,
+                    i,
+                    self.output_dir,
+                    texture_name_base,
+                    format
+                )
+            )
+        max_workers = min(min(os.cpu_count(), 8), len(tasks))
+
+        print(f"Starting parallel processing of {len(tasks)} textures...")
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            planned_tasks_dict = {}
+            for task in tasks:
+                planned_tasks_dict[executor.submit(FontImageMulti._save_single_texture, *task)] = task
+
+            completed = 0
+            total = len(tasks)
+
+            # 收集结果
+            for plan_task in as_completed(planned_tasks_dict):
+                try:
+                    texture_index, texture_name, width, height = plan_task.result()
+                    completed += 1
+                    print(f"Saved texture ({completed}/{total}): {texture_name}.{format} ({width}x{height})")
+                except Exception as e:
+                    task = planned_tasks_dict[plan_task]
+                    texture_index = task[1]
+                    print(f"[Error] Couldn't save texture {texture_index}: {e}")
+
+        print(f"All {len(tasks)} textures saved successfully.")
+
+    @staticmethod
+    def _save_single_texture(texture, texture_index, output_dir, texture_name_base, format):
+        atlas = Image.new("RGBA", (texture.width, texture.height), (0, 0, 0, 0))
+
+        for ttf_glyph in texture.ttf_glyphs:
+            if ttf_glyph.image:
+                atlas.paste(ttf_glyph.image, (ttf_glyph.x, ttf_glyph.y))
+
+        # 生成文件名
+        texture_name = f"{texture_name_base}_{texture_index:d}"
+        if format == "tga":
+            tga_path = os.path.join(output_dir, f"{texture_name}.tga")
+            FontImageMulti._save_tga_for_rtcw(atlas, tga_path)
+        elif format == "png":
+            tga_path = os.path.join(output_dir, f"{texture_name}.png")
+            FontImageMulti._save_png_for_rtcw(atlas, tga_path)
+        else:
+            raise ValueError(f"Unsupported texture format: {format}")
+
+        return texture_index, texture_name, texture.width, texture.height
+
+    @staticmethod
+    def _save_tga_for_rtcw(image: Image.Image, filepath: str) -> None:
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
 
@@ -347,7 +407,8 @@ class FontImageMulti:
             f.write(header)
             f.write(bgra_data.tobytes())
 
-    def _save_png_for_rtcw(self, image: Image.Image, filepath: str) -> None:
+    @staticmethod
+    def _save_png_for_rtcw(image: Image.Image, filepath: str) -> None:
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
 
@@ -398,7 +459,7 @@ class FontImageMulti:
             f.write(f"\tname \"{texture_name_base}\"\n")
             f.write("}\n")
 
-    def generate(self, output_name: str, font_size: int = 36, save_dat: bool = True,
+    def generate(self, output_name: str, font_size: int = 36, save_fnt: bool = True,
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
                     texture_format: str = "tga", developer_mode: bool = False) -> None:
@@ -415,9 +476,13 @@ class FontImageMulti:
         self.pack_textures(texture_width=texture_width, texture_height=texture_height,
                             char_spacing=char_spacing, texture_margin=texture_margin)
         self.generate_glyphs_data(texture_name_base=output_name, texture_format=format)
-        self.save_textures(texture_name_base=output_name, texture_format=format)
+        try:
+            self.save_textures_parallel(texture_name_base=output_name, texture_format=format)
+        except Exception as e:
+            print(f"Parallel acceleration failed, switch to default mode\n\t{e}")
+            self.save_textures(texture_name_base=output_name, texture_format=format)
 
-        if save_dat:
+        if save_fnt:
             # generate .fnt data file
             fnt_path = os.path.join(self.output_dir, f"{output_name}.fnt")
             self.save_fnt_file(filepath=fnt_path, texture_name_base=output_name)
