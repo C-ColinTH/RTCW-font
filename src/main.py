@@ -22,6 +22,7 @@ def generateImage():
         # Chinese, CJK
         # as base template, if the specified font with the same code point is used later
         # the corresponding font data will be overwritten, so set full range (0 - 0x10000) in this
+        # if not set the size in this table, will use default_font_size
         [
             "./test/ttf/simhei.ttf",
             [(0x0000, 0x10000)]
@@ -29,7 +30,8 @@ def generateImage():
         # Arabic
         [
             "./test/ttf/MSUIGHUB.TTF",
-            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
+            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)],
+            42
         ],
         # Korean
         [
@@ -44,14 +46,19 @@ def generateImage():
         # Eastern and Western European fonts, Ascill
         # [
         #     "./test/ttf/DejaVuSerif.ttf",     # Additional downloads may be required
-        #     [(0x0000, 0x04FF)]
+        #     [(0x0000, 0x04FF)],
+        #     32
         # ]
     ]
 
-    generator = FontImageMulti(corresponding_table=table, output_dir=output_dir, max_glyphs=max_glyphs)
+    generator = FontImageMulti(
+        corresponding_table=table,
+        default_font_size=default_font_size,
+        output_dir=output_dir,
+        max_glyphs=max_glyphs
+    )
     generator.generate(
         output_name=output_name,
-        font_size=font_size,
         texture_width=texture_size,
         texture_height=texture_size,
         char_margin=2,
@@ -97,11 +104,11 @@ if __name__ == '__main__':
     FNTtoDat = True
     DATtoFNT = False
 
-    output_dir = "./test"
+    output_dir = "./output"
     output_name = "fontImage_36"
-    font_size = 36
-    texture_size = 1024
-    texture_format = "tga"
+    default_font_size = 36
+    texture_size = 2048     # Maximum size supported by vanilla RTCW is 2048. RealRTCW could support more large size
+    texture_format = "png"
     max_workers = 8     # Maximum number of processes for parallel acceleration
     max_glyphs = 256
 

@@ -408,7 +408,7 @@ if __name__ == "__main__":
     ttf_path = "./test/ttf/simhei.ttf"
     char_ranges = [(0x0000, 0x04FF), (0x3200, 0x05AFF)]
 
-    generator = FontImage(ttf_path, char_ranges, "./test", max_glyphs=65536)
-    generator.generate("fontImage_utf8_0", 36, True, texture_width=2048, texture_height=2048,
+    generator = FontImage(ttf_path, char_ranges, output_dir="./output", max_glyphs=65536)
+    generator.generate("fontImage_utf8_0", font_size=36, save_fnt=True, texture_width=2048, texture_height=2048,
                         texture_format="png", developer_mode=False)
 

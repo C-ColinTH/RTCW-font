@@ -68,6 +68,8 @@ class Texture:
 class MultiTable:
     def __init__(self):
         self.ttf_path: str = ""
+        self.font_size: int = 0
+        self.char_ranges: List[Tuple[int, int]] = []
         self.ttfont: Optional[TTFont] = None
         self.available_chars: List[str] = []
         self.selected_chars: Set[int] = set()

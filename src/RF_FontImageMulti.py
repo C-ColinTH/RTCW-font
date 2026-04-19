@@ -16,12 +16,12 @@ from RF_Set import *
 
 class FontImageMulti:
     def __init__(self, corresponding_table: List[List[Union[str, List[Tuple[int, int]]]]],
-                    output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
+                    default_font_size: int = 36, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
         self.ttf_glyphs: List[TTFGlyph] = []
         self.textures: List[Texture] = []
         self.glyphs: List[Glyph] = []
 
-        self.font_size: int = 0
+        self.default_font_size: int = default_font_size
         self.max_workers: int = 0
         self.output_dir: str = output_dir
         self.max_glyphs: int = max_glyphs
@@ -44,11 +44,27 @@ class FontImageMulti:
             return
 
         for ctable in cor_table:
-            filepath: str = ctable[0]
-            char_ranges: List[Tuple[int, int]] = ctable[1]
+            ctable_length = len(ctable)
+            filepath: str = ""
+            char_ranges: List[Tuple[int, int]] = [(0, self.max_glyphs)]
+            font_size: int = 0
+
+            if ctable_length <= 0:
+                continue
+            elif ctable_length == 1:
+                filepath: str = ctable[0]
+            elif ctable_length == 2:
+                filepath = ctable[0]
+                char_ranges = ctable[1]
+            elif ctable_length >= 3:
+                filepath = ctable[0]
+                char_ranges = ctable[1]
+                font_size = ctable[2]
 
             mtable = MultiTable()
             mtable.ttf_path = filepath
+            mtable.font_size = font_size if font_size > 0 else self.default_font_size
+            mtable.char_ranges = char_ranges
             mtable.ttfont = self._load_font(filepath)
             if mtable.ttfont is None:
                 continue
@@ -128,10 +144,11 @@ class FontImageMulti:
         n = 0
         for mtable in self.multi_table:
             ttf_basename = os.path.basename(mtable.ttf_path)
+            font_size = mtable.font_size
             available_chars = mtable.available_chars
             selected_chars = mtable.selected_chars
 
-            font_pil = ImageFont.truetype(mtable.ttf_path, self.font_size)
+            font_pil = ImageFont.truetype(mtable.ttf_path, font_size)
 
             missing_count = 0
             num = len(available_chars)
@@ -219,20 +236,21 @@ class FontImageMulti:
         for font_index, mtable in enumerate(self.multi_table):
             available_chars = mtable.available_chars
             ttf_basename = os.path.basename(mtable.ttf_path)
+            font_size = mtable.font_size
 
             chunks = []
             for i in range(0, len(available_chars), chars_per_chunk):
                 chunk = available_chars[i:i + chars_per_chunk]
                 chunks.append(chunk)
 
-            print(f"Font {font_index} \"{ttf_basename}\": {len(available_chars)} chars -> {len(chunks)} chunks")
+            print(f"Font {font_index} \"{ttf_basename}\" size {font_size}: {len(available_chars)} chars -> {len(chunks)} chunks")
 
             for chunk_index, char_chunk in enumerate(chunks):
                 all_tasks.append(
                     (
                         font_index,
                         mtable,
-                        self.font_size,
+                        font_size,
                         margin,
                         chunk_index,
                         char_chunk,
@@ -575,9 +593,9 @@ class FontImageMulti:
             f.write(f"// Generated from:\n")
             for i in range(len(self.multi_table)):
                 ttf_basename = os.path.basename(self.multi_table[i].ttf_path)
-                char_ranges = self.corresponding_table[i][-1]
-                f.write(f"// \t\"{ttf_basename}\": {char_ranges}\n")
-            f.write(f"// Font size: {self.font_size}\n")
+                font_size = self.multi_table[i].font_size
+                char_ranges = self.multi_table[i].char_ranges
+                f.write(f"// \t\"{ttf_basename}\", size {font_size}: {char_ranges}\n")
             f.write(f"// Total characters: {len(self.glyphs)}\n")
             f.write(f"// Texture base name: {texture_name_base}\n\n")
 
@@ -611,7 +629,7 @@ class FontImageMulti:
             f.write(f"\tname \"{texture_name_base}\"\n")
             f.write("}\n")
 
-    def generate(self, output_name: str, font_size: int = 36, save_fnt: bool = True,
+    def generate(self, output_name: str, save_fnt: bool = True,
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
                     texture_format: str = "tga", max_workers: int = 1,
@@ -621,7 +639,6 @@ class FontImageMulti:
         developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
-        self.font_size = font_size
         self.max_workers = max_workers
         self.glyphs = []
         self.ttf_glyphs = []
@@ -666,6 +683,7 @@ if __name__ == "__main__":
         # Chinese, CJK
         # as base template, if the specified font with the same code point is used later
         # the corresponding font data will be overwritten, so set full range (0 - 0x10000) in this
+        # if not set the size in this table, will use default_font_size
         [
             "./test/ttf/simhei.ttf",
             [(0x0000, 0x10000)]
@@ -673,7 +691,8 @@ if __name__ == "__main__":
         # Arabic
         [
             "./test/ttf/MSUIGHUB.TTF",
-            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
+            [(0x0590, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)],
+            42 # bigger
         ],
         # Korean
         [
@@ -688,10 +707,11 @@ if __name__ == "__main__":
         # Eastern and Western European fonts, Ascill
         [
             "./test/ttf/DejaVuSerif.ttf",
-            [(0x0000, 0x04FF)]
+            [(0x0000, 0x04FF)],
+            32 # smaller
         ]
     ]
 
-    generator = FontImageMulti(table, "./output", max_glyphs=65536)
-    generator.generate("fontImage_utf8_1", 36, True, texture_width=2048, texture_height=2048,
+    generator = FontImageMulti(table, default_font_size=36, output_dir="./output", max_glyphs=65536)
+    generator.generate("fontImage_utf8_1", save_fnt=True, texture_width=2048, texture_height=2048,
                         texture_format="png", max_workers=8, developer_mode=False)
