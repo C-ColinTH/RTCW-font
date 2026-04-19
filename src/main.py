@@ -42,33 +42,35 @@ def generateImage():
             [(0x3040, 0x309F), (0x30A0, 0x30FF), (0x3100, 0x32FF)]
         ],
         # Eastern and Western European fonts, Ascill
-        [
-            "./test/ttf/DejaVuSerif.ttf",
-            [(0x0000, 0x04FF)]
-        ]
+        # [
+        #     "./test/ttf/DejaVuSerif.ttf",     # Additional downloads may be required
+        #     [(0x0000, 0x04FF)]
+        # ]
     ]
-
-    font_size = 36
-    output_dir = "./test"
-    output_name = f"fontImage_{font_size}"
 
     generator = FontImageMulti(corresponding_table=table, output_dir=output_dir, max_glyphs=max_glyphs)
     generator.generate(
         output_name=output_name,
         font_size=font_size,
-        texture_width=1024,
-        texture_height=1024,
+        texture_width=texture_size,
+        texture_height=texture_size,
         char_margin=2,
         char_spacing=2,
         texture_margin=8,
+        texture_format=texture_format,
+        max_workers=max_workers,
         developer_mode=False
     )
 
 
 def convertData():
     # convert FNT and DAT file to each other
-    file_path = "./test/fontImage_24.fnt"
-    output_dir = "./test"
+    if FNTtoDat:
+        file_path = f"{output_dir}/{output_name}.fnt"
+    elif DATtoFNT:
+        file_path = f"{output_dir}/{output_name}.dat"
+    else:
+        return
 
     fontinfo = FontData(
         file_path=file_path,
@@ -92,10 +94,21 @@ def main():
 if __name__ == '__main__':
     GenerateImage = True
     GenerateData = True
+    FNTtoDat = True
+    DATtoFNT = False
+
+    output_dir = "./test"
+    output_name = "fontImage_36"
+    font_size = 36
+    texture_size = 1024
+    texture_format = "tga"
+    max_workers = 8     # Maximum number of processes for parallel acceleration
     max_glyphs = 256
 
     try:
         main()
     except Exception:
         print(traceback.format_exc())
+    finally:
+        input("Enter any key to exit...")
 

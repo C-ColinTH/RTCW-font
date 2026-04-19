@@ -22,6 +22,7 @@ class FontImageMulti:
         self.glyphs: List[Glyph] = []
 
         self.font_size: int = 0
+        self.max_workers: int = 0
         self.output_dir: str = output_dir
         self.max_glyphs: int = max_glyphs
         self.corresponding_table: List = corresponding_table
@@ -213,6 +214,159 @@ class FontImageMulti:
         self.ttf_glyphs = sorted(self.ttf_glyphs, key=lambda g: g.unicode, reverse=False)
         print(f"Successfully rendered {len(self.ttf_glyphs)} characters!")
 
+    def render_glyphs_parallel(self, margin: int, developer_mode: bool, chars_per_chunk: int) -> None:
+        all_tasks = []
+        for font_index, mtable in enumerate(self.multi_table):
+            available_chars = mtable.available_chars
+            ttf_basename = os.path.basename(mtable.ttf_path)
+
+            chunks = []
+            for i in range(0, len(available_chars), chars_per_chunk):
+                chunk = available_chars[i:i + chars_per_chunk]
+                chunks.append(chunk)
+
+            print(f"Font {font_index} \"{ttf_basename}\": {len(available_chars)} chars -> {len(chunks)} chunks")
+
+            for chunk_index, char_chunk in enumerate(chunks):
+                all_tasks.append(
+                    (
+                        font_index,
+                        mtable,
+                        self.font_size,
+                        margin,
+                        chunk_index,
+                        char_chunk,
+                        developer_mode
+                    )
+                )
+        max_workers = min(min(os.cpu_count(), self.max_workers), len(all_tasks))
+        print(f"Total tasks: {len(all_tasks)} (from {len(self.multi_table)} fonts)")
+
+        merged_glyphs_dict: Dict[int, TTFGlyph] = {}
+        total_missing = 0
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            planned_tasks = {}
+            for task_index, task in enumerate(all_tasks):
+                planned_tasks[executor.submit(FontImageMulti._render_glyphs_chunk, *task)] = task_index
+
+            completed = 0
+            total = len(all_tasks)
+
+            # progress
+            font_progress = {}
+            for i in range(len(self.multi_table)):
+                font_progress[i] = {'completed': 0, 'total': 0}
+
+            for font_index, mtable in enumerate(self.multi_table):
+                available_chars = mtable.available_chars
+                chunks_count = (len(available_chars) + chars_per_chunk - 1) // chars_per_chunk
+                font_progress[font_index]['total'] = chunks_count
+
+            for planned_task in as_completed(planned_tasks):
+                task_index = planned_tasks[planned_task]
+                try:
+                    font_index, chunk_index, chunk_ttf_glyphs_dict, missing_count = planned_task.result()
+                    completed += 1
+
+                    for unicode, glyph in chunk_ttf_glyphs_dict.items():
+                        merged_glyphs_dict[unicode] = glyph
+
+                    total_missing += missing_count
+
+
+                    font_progress[font_index]['completed'] += 1
+                    if completed % 10 == 0 or completed == total:
+                        progress_str = " | ".join([
+                            f"Font {i}: {progress['completed']}/{progress['total']}"
+                            for i, progress in font_progress.items()
+                            if progress['total'] > 0
+                        ])
+                        print(f"Progress: [{completed}/{total}] {progress_str}")
+
+                except Exception as e:
+                    print(f"Error in task {task_index}: {e}")
+
+        # merged result
+        self.ttf_glyphs = list(merged_glyphs_dict.values())
+        self.ttf_glyphs = sorted(self.ttf_glyphs, key=lambda g: g.unicode, reverse=False)
+
+        print(f"\nSuccessfully rendered {len(self.ttf_glyphs)} unique characters!")
+        if total_missing > 0:
+            print(f"Total missing characters: {total_missing}")
+
+    @staticmethod
+    def _render_glyphs_chunk(font_index: int, mtable: MultiTable, font_size: int, margin: int,
+                                chunk_index: int, char_chunk: List[str], developer_mode: bool) -> Tuple:
+        font_pil = ImageFont.truetype(mtable.ttf_path, font_size)
+        ttf_glyphs_dict: Dict[int, TTFGlyph] = {}
+        missing_count = 0
+
+        for char in char_chunk:
+            try:
+                is_reserved_char = ord(char) < 256 and font_index == 0
+
+                if not is_reserved_char:
+                    if len(mtable.selected_chars) > 0 and ord(char) not in mtable.selected_chars:
+                        continue
+                    if char not in mtable.available_chars:
+                        continue
+
+                bbox = font_pil.getbbox(char)
+                if not bbox:
+                    if is_reserved_char:
+                        bbox = font_pil.getbbox(' ')
+                    else:
+                        missing_count += 1
+                        continue
+
+                bbox_width = int(bbox[2] - bbox[0])
+                bbox_height = int(bbox[3] - bbox[1])
+
+                if bbox_width <= 0 and bbox_height <= 0:
+                    continue
+
+                ttf_glyph = TTFGlyph()
+                ttf_glyph.char = char
+                ttf_glyph.unicode = ord(char)
+                ttf_glyph.width = bbox_width
+                ttf_glyph.height = bbox_height
+                ttf_glyph.margin = margin
+                ttf_glyph.bbox = bbox
+
+                metrics = font_pil.getmetrics()
+                ttf_glyph.ascent, ttf_glyph.descent = metrics
+
+                ttf_glyph.image = Image.new("RGBA", (ttf_glyph.width, ttf_glyph.height), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(ttf_glyph.image)
+
+                x_offset = -bbox[0]
+                y_offset = -bbox[1]
+                draw.text((x_offset, y_offset), char, font=font_pil, fill=(255, 255, 255, 255))
+
+                # draw the boundary line for debug
+                if developer_mode:
+                    # texture range
+                    rect_x1 = 0
+                    rect_y1 = 0
+                    rect_x2 = ttf_glyph.width - 1
+                    rect_y2 = ttf_glyph.height - 1
+                    rect_x1, rect_x2 = min(rect_x1, rect_x2), max(rect_x1, rect_x2)
+                    rect_y1, rect_y2 = min(rect_y1, rect_y2), max(rect_y1, rect_y2)
+                    draw.rectangle(
+                        [rect_x1, rect_y1, rect_x2, rect_y2],
+                        outline=(255, 0, 0, 255),  # red
+                        width=1
+                    )
+
+                ttf_glyphs_dict[ttf_glyph.unicode] = ttf_glyph
+
+            except Exception:
+                missing_count += 1
+                continue
+
+        return font_index, chunk_index, ttf_glyphs_dict, missing_count
+
     def pack_textures(self, texture_width: int, texture_height: int,
                         char_spacing: int, texture_margin: int) -> None:
         self.textures = []
@@ -330,7 +484,7 @@ class FontImageMulti:
                     format
                 )
             )
-        max_workers = min(min(os.cpu_count(), 8), len(tasks))
+        max_workers = min(min(os.cpu_count(), self.max_workers), len(tasks))
 
         print(f"Starting parallel processing of {len(tasks)} textures...")
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -460,24 +614,40 @@ class FontImageMulti:
     def generate(self, output_name: str, font_size: int = 36, save_fnt: bool = True,
                     texture_width: int = 1024, texture_height: int = 1024,
                     char_margin: int = 2, char_spacing: int = 2, texture_margin: int = 8,
-                    texture_format: str = "tga", developer_mode: bool = False) -> None:
+                    texture_format: str = "tga", max_workers: int = 1,
+                    developer_mode: bool = False) -> None:
         """
         texture_format: "tga", "png"
         developer_mode: draw colored boundary lines for each font for adjustment purposes
         """
         format = texture_format.lower()
         self.font_size = font_size
+        self.max_workers = max_workers
         self.glyphs = []
         self.ttf_glyphs = []
 
-        self.render_glyphs(margin=char_margin, developer_mode=developer_mode)
+        if self.max_workers > 1:
+            try:
+                self.render_glyphs_parallel(margin=char_margin, developer_mode=developer_mode, chars_per_chunk=600)
+            except Exception as e:
+                if developer_mode:
+                    print(f"Parallel acceleration failed, switch to default mode...\n{e}")
+                self.render_glyphs(margin=char_margin, developer_mode=developer_mode)
+        else:
+            self.render_glyphs(margin=char_margin, developer_mode=developer_mode)
+        
         self.pack_textures(texture_width=texture_width, texture_height=texture_height,
                             char_spacing=char_spacing, texture_margin=texture_margin)
         self.generate_glyphs_data(texture_name_base=output_name, texture_format=format)
-        try:
-            self.save_textures_parallel(texture_name_base=output_name, texture_format=format)
-        except Exception as e:
-            print(f"Parallel acceleration failed, switch to default mode\n\t{e}")
+
+        if self.max_workers > 1:
+            try:
+                self.save_textures_parallel(texture_name_base=output_name, texture_format=format)
+            except Exception as e:
+                if developer_mode:
+                    print(f"Parallel acceleration failed, switch to default mode\n{e}")
+                self.save_textures(texture_name_base=output_name, texture_format=format)
+        else:
             self.save_textures(texture_name_base=output_name, texture_format=format)
 
         if save_fnt:
@@ -524,4 +694,4 @@ if __name__ == "__main__":
 
     generator = FontImageMulti(table, "./output", max_glyphs=65536)
     generator.generate("fontImage_utf8_1", 36, True, texture_width=2048, texture_height=2048,
-                        texture_format="png", developer_mode=False)
+                        texture_format="png", max_workers=8, developer_mode=False)

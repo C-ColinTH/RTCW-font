@@ -289,6 +289,9 @@ class FontData:
             f.write(f"\tglyphScale {self.glyphScale:.6f}\n")
             f.write(f"\tname {self.name}\n")
             f.write("}\n")
+            
+        if os.path.exists(filepath):
+            print(f"Successfully written to \"{filepath}\"")
 
     def write_dat(self, filename: str = "", output_dir: str = "") -> None:
         """
@@ -365,6 +368,9 @@ class FontData:
             # fontinfo
             f.write(dat_float_to_hex(self.glyphScale))
             f.write(dat_str_to_hex(self.name.replace('\"', ''), byte_len=MAX_QPATH))
+        
+        if os.path.exists(filename):
+            print(f"Successfully written to \"{filename}\"")
 
     def show_info(self, index: int = -1) -> None:
         """
