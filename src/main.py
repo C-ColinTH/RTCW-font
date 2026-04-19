@@ -5,8 +5,8 @@ Also, the recommended version for third-party libraries is:
     pillow: 12.0.0
     fonttools: 4.60.1
 
-If you want to generate fonts more than 256, chanege 'GLYPHS_PER_FONT' in RF_Set.py. You may also
-need to modify RTCW code to support more fonts. For default RTCW, it should be set to 256.
+If you want to generate fonts more than 256, chanege 'max_glyphs'.
+You may also need to modify RTCW code to support more fonts. For default RTCW, it should be set to 256.
 """
 
 
