@@ -13,7 +13,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from RF_Set import *
 
-
 class FontImageMulti:
     def __init__(self, corresponding_table: List[List[Union[str, List[Tuple[int, int]]]]],
                     default_font_size: int = 36, output_dir: str = "", max_glyphs: int = GLYPHS_PER_FONT):
@@ -177,15 +176,17 @@ class FontImageMulti:
                             continue
 
                     # check if bbox is valid
-                    if bbox[2] - bbox[0] <= 0 and bbox[3] - bbox[1] <= 0:
+                    bbox_width = int(bbox[2] - bbox[0])
+                    bbox_height = int(bbox[3] - bbox[1])
+                    if bbox_width <= 0 and bbox_height <= 0:
                         continue
 
                     ttf_glyph = TTFGlyph()
                     ttf_glyph.char_index = i
                     ttf_glyph.char = char
                     ttf_glyph.unicode = ord(char[0])
-                    ttf_glyph.width = int(bbox[2] - bbox[0])
-                    ttf_glyph.height = int(bbox[3] - bbox[1])
+                    ttf_glyph.width = bbox_width
+                    ttf_glyph.height = bbox_height
                     ttf_glyph.margin = margin
                     ttf_glyph.bbox = bbox
 
@@ -322,7 +323,8 @@ class FontImageMulti:
 
         for char in char_chunk:
             try:
-                is_reserved_char = ord(char) < 256 and font_index == 0
+                FORCE_RESERVEED_BASE_CHARS = False  # seems no necessary
+                is_reserved_char =FORCE_RESERVEED_BASE_CHARS and ord(char) < 256 and font_index == 0
 
                 if not is_reserved_char:
                     if len(mtable.selected_chars) > 0 and ord(char) not in mtable.selected_chars:
