@@ -1,8 +1,10 @@
 # RTCWfont
 These script files will generate TGA/PNG bitmap font textures and FNT/DAT data files for Return to Castle Wolfenstein (RTCW) and RealRTCW from TrueType fonts (TTF/TTC).
 
+## How to use (executable file)
+It will be uploaded soon...
 
-## How to use
+## How to use (run code script)
 __Prerequisites__
 
 Python 3.12 or later recommended.
@@ -33,6 +35,19 @@ By default, the script will:
 
 __Custom Configuration__
 
+You can generate fonts from multiple TTF files, just adjust `corresponding_table`, syntax：
+```python
+# example
+corresponding_table = [
+    [
+        filepath,
+        [(index begin, index end), ...],
+        fontsize       # Optional parameters, if not set, will use default_font_size
+    ],
+    ...
+]
+```
+
 You can adjust generation parameters in the generate() method:
 ```python
 generator.generate(
@@ -42,6 +57,7 @@ generator.generate(
     char_margin=2,           # Margin around each character
     char_spacing=2,          # Spacing between characters
     texture_margin=8,        # Margin around texture edges
+    max_workers=8,           # Number of cpu cores for parallel processing
     texture_format="tga"     # "tga" or "png" format
 )
 ```
