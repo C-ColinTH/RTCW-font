@@ -11,7 +11,6 @@ You may also need to modify RTCW code to support more fonts. For default RTCW, i
 
 
 from RF_FontData import FontData
-from RF_FontImage import FontImage
 from RF_FontImageMulti import FontImageMulti
 import traceback
 
