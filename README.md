@@ -2,7 +2,7 @@
 These script files will generate TGA/PNG bitmap font textures and FNT/DAT data files for Return to Castle Wolfenstein (RTCW) and RealRTCW from TrueType fonts (TTF/TTC).
 
 ## How to use (executable file)
-It will be uploaded soon...
+Go to the Realease page to download the GUI executable file.
 
 ## How to use (run code script)
 __Prerequisites__
