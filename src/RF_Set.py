@@ -1,4 +1,4 @@
-from typing import Tuple, List, Set, Dict, Optional, TYPE_CHECKING
+from typing import Tuple, List, Set, Dict, Union, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -69,7 +69,7 @@ class MultiTable:
     def __init__(self):
         self.ttf_path: str = ""
         self.font_size: int = 0
-        self.char_ranges: List[Tuple[int, int]] = []
+        self.char_ranges: List[Union[Tuple[int, int], int]] = []
         self.ttfont: Optional[TTFont] = None
         self.available_chars: List[str] = []
         self.selected_chars: Set[int] = set()

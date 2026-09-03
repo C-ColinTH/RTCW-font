@@ -45,7 +45,7 @@ class FontImageMulti:
         for ctable in cor_table:
             ctable_length = len(ctable)
             filepath: str = ""
-            char_ranges: List[Tuple[int, int]] = [(0, self.max_glyphs)]
+            char_ranges: List[Union[Tuple[int, int], int]] = [(0, self.max_glyphs)]
             font_size: int = 0
 
             if ctable_length <= 0:
@@ -101,13 +101,15 @@ class FontImageMulti:
             raise AttributeError("Could not find cmap table")
 
         try:
-            cmap_table = ttfont['cmap'].tables
+            # cmap_table = ttfont['cmap'].tables
+            cmap_table = getattr(ttfont['cmap'], 'tables')
             for table in cmap_table:
                 if table.format == 4:  # the mostly used format
                     for codepoint in table.cmap.keys():
                         if 0 <= codepoint <= self.max_glyphs:  # Unicode range
                             available_chars.add(chr(codepoint))
         except:
+            print("[Warning] failed to get available characters from cmap table, try to use best cmap table...")
             best_table = ttfont.getBestCmap()
             if best_table:
                 for codepoint in best_table.keys():
@@ -117,12 +119,15 @@ class FontImageMulti:
         # need to be ordered, so return a list type
         return sorted(list(available_chars))
 
-    def _set_char_sets(self, char_ranges: List[Tuple[int, int]]) -> Set[int]:
+    def _set_char_sets(self, char_ranges: List[Union[Tuple[int, int], int]]) -> Set[int]:
         selected_chars = set()
         for r in char_ranges:
-            for i in range(r[0], r[-1] + 1):
-                # [r[0], r[-1]], including the right boundary value
-                selected_chars.add(i)
+            if isinstance(r, int):
+                selected_chars.add(r)
+            elif isinstance(r, (tuple, list)):
+                for i in range(r[0], r[-1] + 1):
+                    # [r[0], r[-1]], including the right boundary value
+                    selected_chars.add(i)
 
         return selected_chars
 
@@ -258,7 +263,8 @@ class FontImageMulti:
                         developer_mode
                     )
                 )
-        max_workers = min(min(os.cpu_count(), self.max_workers), len(all_tasks))
+        cores = os.cpu_count() or 1
+        max_workers = min(min(cores, self.max_workers), len(all_tasks))
         print(f"Total tasks: {len(all_tasks)} (from {len(self.multi_table)} fonts)")
 
         merged_glyphs_dict: Dict[int, TTFGlyph] = {}
@@ -504,7 +510,8 @@ class FontImageMulti:
                     format
                 )
             )
-        max_workers = min(min(os.cpu_count(), self.max_workers), len(tasks))
+        cores = os.cpu_count() or 1
+        max_workers = min(min(cores, self.max_workers), len(tasks))
 
         print(f"Starting parallel processing of {len(tasks)} textures...")
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
