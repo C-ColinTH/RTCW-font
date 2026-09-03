@@ -1,6 +1,13 @@
 # RTCWfont
 These script files will generate TGA/PNG bitmap font textures and FNT/DAT data files for Return to Castle Wolfenstein (RTCW) and RealRTCW from TrueType fonts (TTF/TTC).
 
+## Key Features
+1. TrueType font conversion into .dat and .tga.png format.
+2. Read .dat.fnt files and support convert .dat and .fnt files to each other.
+3. Support multiple ttf and ttc font templates to generate fonts.
+4. Maximum glyph limit has been increased to 65535.
+5. GUI operation.
+
 ## How to use (executable file)
 Go to the [Realease](https://github.com/C-ColinTH/RTCW-font/releases) page to download the GUI executable file.
 
