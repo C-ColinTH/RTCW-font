@@ -66,6 +66,7 @@ class FontImageMulti:
             mtable.char_ranges = char_ranges
             mtable.ttfont = self._load_font(filepath)
             if mtable.ttfont is None:
+                print(f"[Warning] failed to load font from \"{filepath}\", skip it...")
                 continue
             mtable.available_chars = self._get_available_characters(mtable.ttfont)
             mtable.selected_chars = self._set_char_sets(char_ranges)
@@ -84,6 +85,8 @@ class FontImageMulti:
             raise FileNotFoundError(f"[Error] couldn't open \"{try_path}\"")
 
         if try_path.lower().endswith(".ttf"):
+            ttfont = TTFont(try_path)
+        elif try_path.lower().endswith(".otf"):
             ttfont = TTFont(try_path)
         elif try_path.lower().endswith(".ttc"):
             ttfont = TTFont(try_path, fontNumber=0)
@@ -651,6 +654,10 @@ class FontImageMulti:
         self.max_workers = max_workers
         self.glyphs = []
         self.ttf_glyphs = []
+
+        if not self.multi_table or len(self.multi_table) == 0:
+            print("[Warning] No valid task found, generation terminated!")
+            return
 
         if self.max_workers > 1:
             try:
